@@ -1,0 +1,1259 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap");
+
+:root {
+  font-family: "DM Sans", "Noto Sans Kannada", sans-serif;
+  color: #292b24;
+  background: #faf8f2;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid #c66b45;
+  outline-offset: 3px;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  background: #faf8f2;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 20px 22px;
+  background: #f1eee5;
+  border-right: 1px solid #e5e0d4;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 45px;
+}
+
+.brand-mark {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #304d3d;
+  color: #fffaf0;
+}
+
+.brand-name {
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.brand-subtitle {
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  font-weight: 700;
+}
+
+.sidebar-label,
+.section-kicker {
+  color: #858477;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+
+.sidebar-label {
+  margin: 0 0 13px 10px;
+}
+
+.navigation {
+  display: grid;
+  gap: 5px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #65665a;
+  text-align: left;
+  font-size: 13px;
+}
+
+.nav-link:hover {
+  background: #e8e4d9;
+}
+
+.nav-link.active {
+  color: #304d3d;
+  background: #e0e7dc;
+  font-weight: 700;
+}
+
+.nav-count {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: #ded9cd;
+  margin: 27px 0;
+}
+
+.journey-card {
+  padding: 17px;
+  border: 1px solid #e3ded1;
+  border-radius: 12px;
+  background: #faf8f2;
+}
+
+.journey-icon {
+  color: #bd714c;
+  margin-bottom: 15px;
+}
+
+.journey-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.journey-card p {
+  color: #7c7b70;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.journey-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #e7e2d7;
+  margin-top: 18px;
+}
+
+.journey-progress span {
+  display: block;
+  width: 12%;
+  height: 100%;
+  border-radius: inherit;
+  background: #bd714c;
+}
+
+.journey-caption {
+  margin-top: 9px;
+  color: #888679;
+  font-size: 10px;
+}
+
+.sidebar-bottom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding: 17px 5px 0;
+  border-top: 1px solid #ded9cd;
+}
+
+.karnataka-symbol,
+.footer-mark {
+  display: grid;
+  place-items: center;
+  color: #a95d3d;
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.sidebar-bottom-title {
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sidebar-bottom-text {
+  margin-top: 4px;
+  color: #77776c;
+  font-size: 11px;
+}
+
+.main-content {
+  min-width: 0;
+  padding: 0 43px;
+}
+
+.topbar {
+  min-height: 76px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 1px solid #e9e5da;
+}
+
+.breadcrumb {
+  color: #858477;
+  font-size: 12px;
+}
+
+.breadcrumb span {
+  margin: 0 8px;
+  color: #b5b0a3;
+}
+
+.breadcrumb strong {
+  color: #34382e;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 21px;
+}
+
+.language-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #67685d;
+  font-size: 12px;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e1d8c8;
+  border-radius: 50%;
+  background: #eee2d2;
+  font-family: "Noto Sans Kannada", sans-serif;
+}
+
+.hero {
+  min-height: 430px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  align-items: center;
+  gap: 25px;
+  padding: 48px 0 55px;
+  border-bottom: 1px solid #e9e5da;
+}
+
+.hero-content {
+  max-width: 570px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #79796b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.7px;
+}
+
+.eyebrow-dot,
+.live-label span {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #bd714c;
+}
+
+.hero h1,
+.workspace-heading h1 {
+  margin: 24px 0 18px;
+  font-size: clamp(36px, 4vw, 55px);
+  line-height: 1.12;
+  letter-spacing: -2px;
+  font-weight: 600;
+}
+
+.hero h1 span {
+  color: #a95d3d;
+}
+
+.hero-description {
+  max-width: 490px;
+  color: #737368;
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.primary-button,
+.practice-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 47px;
+  margin-top: 20px;
+  padding: 0 19px;
+  border: 1px solid #304d3d;
+  border-radius: 7px;
+  background: #304d3d;
+  color: #fffaf0;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.primary-button:hover,
+.practice-button:hover {
+  background: #243d30;
+  transform: translateY(-1px);
+}
+
+.hero-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  color: #858477;
+  font-size: 11px;
+}
+
+.hero-art {
+  position: relative;
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+
+.orbit {
+  position: absolute;
+  border: 1px solid #d9d7c9;
+  border-radius: 50%;
+}
+
+.orbit-one {
+  width: 290px;
+  height: 290px;
+}
+
+.orbit-two {
+  width: 230px;
+  height: 230px;
+  border-style: dashed;
+}
+
+.orbit-three {
+  width: 170px;
+  height: 170px;
+}
+
+.art-sun {
+  position: absolute;
+  top: 35px;
+  right: 14%;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #e9d4a7;
+  z-index: -1;
+}
+
+.art-leaf {
+  position: absolute;
+  width: 45px;
+  height: 80px;
+  border-radius: 100% 0 100% 0;
+  background: #8da28a;
+  opacity: 0.75;
+}
+
+.leaf-one {
+  left: 13%;
+  bottom: 40px;
+  transform: rotate(-35deg);
+}
+
+.leaf-two {
+  right: 14%;
+  bottom: 55px;
+  transform: rotate(38deg) scale(0.7);
+  background: #c78660;
+}
+
+.art-letter {
+  display: grid;
+  place-items: center;
+  width: 145px;
+  height: 145px;
+  border: 1px solid #e3d8c4;
+  border-radius: 35px;
+  background: #f4ead7;
+  box-shadow: 0 22px 60px #473a2012;
+  color: #a95d3d;
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 83px;
+  transform: rotate(-5deg);
+}
+
+.speech-card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 16px;
+  border: 1px solid #e6dfd1;
+  border-radius: 11px;
+  background: #fffdf8;
+  box-shadow: 0 12px 35px #473a200d;
+}
+
+.speech-top {
+  top: 32px;
+  left: 2%;
+  color: #304d3d;
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-weight: 600;
+}
+
+.speech-bottom {
+  right: 0;
+  bottom: 20px;
+  color: #304d3d;
+}
+
+.wave-label {
+  color: #79796b;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.mini-wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  margin-top: 6px;
+}
+
+.mini-wave span {
+  width: 3px;
+  max-height: 21px;
+  border-radius: 5px;
+  background: #a95d3d;
+}
+
+.art-caption {
+  position: absolute;
+  bottom: -2px;
+  color: #858477;
+  font-size: 11px;
+}
+
+.section {
+  padding: 47px 0;
+  border-bottom: 1px solid #e9e5da;
+}
+
+.section-heading,
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.section-heading h2,
+.panel-heading h2,
+.practice-panel h2 {
+  margin: 12px 0 8px;
+  font-size: 24px;
+  line-height: 1.3;
+  letter-spacing: -0.6px;
+  font-weight: 600;
+}
+
+.section-heading p,
+.practice-panel p {
+  color: #77776c;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.scenario-count {
+  flex: 0 0 auto;
+  padding-bottom: 5px;
+  color: #858477;
+  font-size: 11px;
+}
+
+.scenario-count span {
+  color: #a95d3d;
+  font-size: 23px;
+  font-weight: 600;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 25px 0 20px;
+  padding: 0 15px;
+  min-height: 48px;
+  border: 1px solid #e4dfd3;
+  border-radius: 7px;
+  background: #fffdf8;
+  color: #858477;
+}
+
+.search-box input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #292b24;
+  font-size: 12px;
+}
+
+.search-shortcut {
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.scenario-card {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid #e7e1d5;
+  border-radius: 10px;
+  background: #fffdf8;
+  text-align: left;
+  color: #292b24;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.scenario-card:hover {
+  border-color: #c8a58b;
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px #44351b0b;
+}
+
+.scenario-card-top,
+.scenario-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.scenario-icon {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 11px;
+}
+
+.scenario-icon.peach {
+  background: #f5e4d8;
+  color: #a95d3d;
+}
+
+.scenario-icon.green {
+  background: #e3eadf;
+  color: #426548;
+}
+
+.scenario-icon.yellow {
+  background: #f4edce;
+  color: #92772d;
+}
+
+.scenario-icon.blue {
+  background: #e0e9eb;
+  color: #456b78;
+}
+
+.scenario-number {
+  color: #b7b0a2;
+  font-size: 12px;
+}
+
+.scenario-kannada {
+  margin-top: 22px;
+  color: #a95d3d;
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 13px;
+}
+
+.scenario-card h3 {
+  margin: 8px 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.scenario-card p {
+  min-height: 43px;
+  margin: 0;
+  color: #7c7b70;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.scenario-footer {
+  justify-content: flex-start;
+  margin-top: 22px;
+  padding-top: 15px;
+  border-top: 1px solid #eee9df;
+  color: #77776c;
+  font-size: 10px;
+}
+
+.scenario-duration {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.scenario-arrow {
+  margin-left: auto;
+  color: #a95d3d;
+}
+
+.empty-state {
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px dashed #d9d2c5;
+  border-radius: 8px;
+  color: #77776c;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 38px 0 48px;
+}
+
+.phrase-panel,
+.practice-panel {
+  min-width: 0;
+  padding: 23px;
+  border: 1px solid #e6e0d4;
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.panel-heading {
+  align-items: flex-start;
+}
+
+.panel-heading h2 {
+  font-size: 21px;
+}
+
+.panel-icon,
+.practice-decoration {
+  display: grid;
+  place-items: center;
+  width: 41px;
+  height: 41px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: #e3eadf;
+  color: #426548;
+}
+
+.phrase-list {
+  margin-top: 18px;
+}
+
+.phrase-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid #eee9df;
+}
+
+.phrase-letter {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #f5e8d9;
+  color: #a95d3d;
+  font-family: "Noto Sans Kannada", sans-serif;
+}
+
+.phrase-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.phrase-copy strong {
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 13px;
+}
+
+.phrase-copy span {
+  color: #858477;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.save-button {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  border: 1px solid #e4dfd3;
+  border-radius: 8px;
+  background: transparent;
+  color: #77776c;
+}
+
+.save-button:hover,
+.save-button.saved {
+  border-color: #b7c8af;
+  background: #e7eee2;
+  color: #426548;
+}
+
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #426548;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.practice-panel {
+  background: #e9ede3;
+  border-color: #e0e5d8;
+}
+
+.practice-panel-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.practice-decoration {
+  background: #d8e1d1;
+}
+
+.live-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #65765d;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.live-label span {
+  background: #6b8a58;
+}
+
+.practice-panel h2 {
+  margin-top: 30px;
+  font-size: 24px;
+}
+
+.practice-panel p {
+  font-size: 12px;
+}
+
+.practice-button {
+  background: #fffdf8;
+  border-color: #d5ddcf;
+  color: #304d3d;
+}
+
+.practice-button:hover {
+  background: #f7f8f2;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 22px 0;
+  border-top: 1px solid #e9e5da;
+  color: #858477;
+  font-size: 10px;
+}
+
+.footer > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.footer-mark {
+  font-size: 20px;
+}
+
+.workspace {
+  padding: 35px 0 55px;
+}
+
+.back-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #65765d;
+  font-size: 12px;
+}
+
+.workspace-heading {
+  margin: 35px 0 30px;
+}
+
+.workspace-heading h1 {
+  margin-top: 15px;
+  font-size: clamp(33px, 4vw, 46px);
+}
+
+.workspace-heading p {
+  max-width: 650px;
+  color: #77776c;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.practice-workspace {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(0, 1.4fr);
+  gap: 23px;
+}
+
+.scenario-picker,
+.conversation-area,
+.phrasebook-summary {
+  padding: 22px;
+  border: 1px solid #e6e0d4;
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.scenario-picker h2 {
+  margin: 0 0 18px;
+  font-size: 16px;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  color: #292b24;
+}
+
+.picker-item:hover {
+  background: #f7f4ec;
+}
+
+.picker-item.selected {
+  border-color: #d4dfce;
+  background: #edf1e8;
+  color: #304d3d;
+}
+
+.picker-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.picker-copy strong {
+  font-size: 12px;
+}
+
+.picker-copy span {
+  color: #858477;
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 10px;
+}
+
+.picker-item > svg:last-child {
+  margin-left: auto;
+}
+
+.conversation-area {
+  text-align: center;
+}
+
+.conversation-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #858477;
+  font-size: 9px;
+  letter-spacing: 1.3px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6b8a58;
+}
+
+.conversation-welcome {
+  padding: 30px 0 22px;
+}
+
+.welcome-icon {
+  display: grid;
+  place-items: center;
+  width: 65px;
+  height: 65px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: #e5ebdf;
+  color: #426548;
+}
+
+.conversation-welcome h2 {
+  margin: 19px 0 7px;
+  color: #a95d3d;
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 27px;
+}
+
+.conversation-welcome p {
+  color: #77776c;
+  font-size: 12px;
+}
+
+.conversation-hint {
+  max-width: 340px;
+  margin: 15px auto 0;
+  color: #858477;
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.conversation-prompt {
+  padding: 17px;
+  border-radius: 8px;
+  background: #f5f2e9;
+  text-align: left;
+}
+
+.conversation-prompt span {
+  color: #858477;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.conversation-prompt strong {
+  display: block;
+  margin-top: 9px;
+  font-size: 14px;
+}
+
+.conversation-prompt p {
+  margin-bottom: 0;
+  color: #77776c;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.mic-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 49px;
+  margin-top: 22px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 8px;
+  background: #304d3d;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mic-button:hover {
+  background: #243d30;
+}
+
+.microphone-note {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  color: #858477;
+  font-size: 10px;
+}
+
+.phrasebook-summary {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  color: #426548;
+}
+
+.phrasebook-summary div {
+  display: grid;
+  gap: 6px;
+}
+
+.phrasebook-summary strong {
+  color: #292b24;
+  font-size: 14px;
+}
+
+.phrasebook-summary span {
+  color: #858477;
+  font-size: 11px;
+}
+
+.phrasebook-list {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.phrasebook-item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid #e6e0d4;
+  border-radius: 9px;
+  background: #fffdf8;
+}
+
+.phrasebook-kannada {
+  font-family: "Noto Sans Kannada", sans-serif;
+  font-size: 17px;
+}
+
+.phrasebook-transliteration {
+  margin-top: 8px;
+  color: #a95d3d;
+  font-size: 12px;
+}
+
+.phrasebook-meaning {
+  margin-top: 6px;
+  color: #77776c;
+  font-size: 12px;
+}
+
+@media (min-width: 1500px) {
+  .main-content {
+    padding-right: 65px;
+    padding-left: 65px;
+  }
+
+  .hero {
+    min-height: 480px;
+  }
+}
+
+@media (max-width: 1050px) {
+  .app-shell {
+    grid-template-columns: 215px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .main-content {
+    padding-right: 25px;
+    padding-left: 25px;
+  }
+
+  .hero {
+    grid-template-columns: 1fr 0.8fr;
+  }
+
+  .hero-art {
+    transform: scale(0.85);
+  }
+
+  .bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    display: block;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    padding: 15px 17px;
+    border-right: 0;
+    border-bottom: 1px solid #e5e0d4;
+  }
+
+  .brand {
+    margin-bottom: 16px;
+  }
+
+  .sidebar-label,
+  .sidebar-divider,
+  .journey-card,
+  .sidebar-bottom {
+    display: none;
+  }
+
+  .navigation {
+    display: flex;
+    gap: 6px;
+  }
+
+  .nav-link {
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 7px;
+    font-size: 11px;
+  }
+
+  .main-content {
+    padding: 0 18px;
+  }
+
+  .topbar {
+    min-height: 62px;
+  }
+
+  .topbar-right {
+    gap: 10px;
+  }
+
+  .language-label {
+    font-size: 0;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 42px 0 30px;
+  }
+
+  .hero h1 {
+    font-size: 39px;
+  }
+
+  .hero-art {
+    min-height: 280px;
+    transform: scale(0.9);
+  }
+
+  .section {
+    padding: 34px 0;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+  }
+
+  .section-heading h2 {
+    font-size: 21px;
+  }
+
+  .scenario-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bottom-grid {
+    padding: 28px 0;
+  }
+
+  .practice-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-heading h1 {
+    letter-spacing: -1px;
+  }
+
+  .footer {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
