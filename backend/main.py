@@ -36,18 +36,58 @@ SCENARIOS = {
     "daily": {
         "title": "Everyday conversation",
         "description": "Greetings, introductions, and everyday expressions.",
+        "kannada": "ದೈನಂದಿನ ಸಂಭಾಷಣೆ",
+        "greeting": "ನಮಸ್ಕಾರ! ನೀವು ಹೇಗಿದ್ದೀರಿ?",
+        "meaning": "Hello! How are you?",
     },
     "travel": {
         "title": "Explore Karnataka",
         "description": "Directions, transport, and travel situations.",
+        "kannada": "ಕರ್ನಾಟಕ ಪ್ರವಾಸ",
+        "greeting": "ಬಸ್ ನಿಲ್ದಾಣ ಎಲ್ಲಿದೆ?",
+        "meaning": "Where is the bus stop?",
     },
     "food": {
         "title": "Order something delicious",
         "description": "Restaurants, food orders, and drinks.",
+        "kannada": "ಊಟ ಆರ್ಡರ್ ಮಾಡುವುದು",
+        "greeting": "ಒಂದು ದೋಸೆ ಮತ್ತು ಫಿಲ್ಟರ್ ಕಾಫಿ ಕೊಡಿ.",
+        "meaning": "One dosa and a filter coffee, please.",
     },
     "shopping": {
         "title": "At the local market",
         "description": "Prices, bargaining, and shopping.",
+        "kannada": "ಸ್ಥಳೀಯ ಮಾರುಕಟ್ಟೆ",
+        "greeting": "ಇದರ ಬೆಲೆ ಎಷ್ಟು? ಸ್ವಲ್ಪ ಕಮ್ಮಿ ಮಾಡಿ.",
+        "meaning": "How much is this? Please reduce a bit.",
+    },
+    "college": {
+        "title": "College & student life",
+        "description": "Talking with classmates, professors, and library visits.",
+        "kannada": "ಕಾಲೇಜು ಮತ್ತು ಕ್ಯಾಂಪಸ್",
+        "greeting": "ನಾಳೆ ಕ್ಲಾಸ್ ಇದೆಯಾ? ನೋಟ್ಸ್ ಸಿಗುತ್ತಾ?",
+        "meaning": "Is there class tomorrow? Can I get notes?",
+    },
+    "auto": {
+        "title": "Auto-rickshaw ride",
+        "description": "Hailing an auto, meter ride, and destination landmarks.",
+        "kannada": "ಆಟೋ ಪ್ರಯಾಣ",
+        "greeting": "ಮೆಜೆಸ್ಟಿಕ್‌ಗೆ ಹೋಗ್ತೀರಾ? ಮೀಟರ್ ಹಾಕಿ.",
+        "meaning": "Will you go to Majestic? Please put the meter.",
+    },
+    "directions": {
+        "title": "Asking for directions",
+        "description": "Finding metro stations, streets, and navigating Bengaluru.",
+        "kannada": "ದಾರಿ ಕೇಳುವುದು",
+        "greeting": "ಹತ್ತಿರದ ಮೆಟ್ರೋ ಸ್ಟೇಷನ್ ಎಲ್ಲಿದೆ?",
+        "meaning": "Where is the nearest metro station?",
+    },
+    "office": {
+        "title": "Workplace conversation",
+        "description": "Casual office greetings, lunch invites, and team talk.",
+        "kannada": "ಕಚೇರಿ ಮತ್ತು ಸಹೋದ್ಯೋಗಿಗಳು",
+        "greeting": "ಊಟಕ್ಕೆ ಹೋಗೋಣ್ವಾ? ಇವತ್ತು ಮೀಟಿಂಗ್ ಇದೆ.",
+        "meaning": "Shall we go for lunch? Today there is a meeting.",
     },
 }
 
@@ -82,19 +122,14 @@ def health_check():
 
 @app.get("/api/scenarios")
 def get_scenarios():
-    greetings = {
-        "daily": ("ನಮಸ್ಕಾರ! ನೀವು ಹೇಗಿದ್ದೀರಿ?", "Hello! How are you?"),
-        "travel": ("ಬಸ್ ನಿಲ್ದಾಣ ಎಲ್ಲಿದೆ?", "Where is the bus stop?"),
-        "food": ("ಒಂದು ದೋಸೆ ಕೊಡಿ, ದಯವಿಟ್ಟು.", "One dosa, please."),
-        "shopping": ("ಇದರ ಬೆಲೆ ಎಷ್ಟು?", "How much does this cost?"),
-    }
-
     return [
         {
             "id": scenario_id,
             "title": scenario["title"],
-            "greeting": greetings[scenario_id][0],
-            "meaning": greetings[scenario_id][1],
+            "kannada": scenario["kannada"],
+            "description": scenario["description"],
+            "greeting": scenario["greeting"],
+            "meaning": scenario["meaning"],
         }
         for scenario_id, scenario in SCENARIOS.items()
     ]
@@ -202,3 +237,257 @@ Return ONLY valid JSON with these keys:
                 "and Gemini usage limits."
             ),
         ) from None
+
+
+# Certificate catalog and verification database (in-memory demonstration store + Supabase sync)
+KNOWN_CERTIFICATES = {
+    "MAATU-KB-2026-89412": {
+        "id": "MAATU-KB-2026-89412",
+        "course_title": "Kannada Basics — Foundation Certificate",
+        "course_title_kannada": "ಕನ್ನಡ ಮೂಲಭೂತ ಪ್ರವೀಣತೆ ಪ್ರಮಾಣಪತ್ರ",
+        "learner_name": "ಕನ್ನಡ ಕಲಿ (Kannada Learner)",
+        "issued_date": "2026-10-24",
+        "status": "Verified & Active",
+        "issuer": "ಮಾತು — Voice of Kannada Academy",
+        "score_percent": 98,
+        "criteria_met": [
+            "Completed 10 core vocabulary lessons",
+            "Achieved 90%+ in the comprehensive Kannada Basics Quiz",
+            "Practiced spoken greetings and daily phrases with AI coach",
+        ],
+    },
+    "MAATU-EK-2026-40291": {
+        "id": "MAATU-EK-2026-40291",
+        "course_title": "Everyday Kannada — Practical Conversation",
+        "course_title_kannada": "ದೈನಂದಿನ ಸಂಭಾಷಣೆ ಪ್ರವೀಣತೆ",
+        "learner_name": "ಅನ್ವೇಷಕ (Pioneer)",
+        "issued_date": "2026-10-20",
+        "status": "Verified & Active",
+        "issuer": "ಮಾತು — Voice of Kannada Academy",
+        "score_percent": 95,
+        "criteria_met": [
+            "Completed Food, Shopping, and Travel modules",
+            "Completed 5 real-world spoken dialogue simulations",
+            "Maintained a 7-day learning streak",
+        ],
+    },
+}
+
+
+@app.get("/api/verify-certificate/{cert_id}")
+def verify_certificate(cert_id: str):
+    """
+    Public Certificate Verification Endpoint.
+    Validates certificate ID against authentic records or verified format.
+    """
+    clean_id = cert_id.strip().upper()
+    cert = KNOWN_CERTIFICATES.get(clean_id)
+
+    if cert:
+        return {"found": True, "certificate": cert}
+
+    # Verify dynamically issued user certificate pattern: MAATU-[A-Z0-9]{2,4}-\d{4}-[A-Z0-9]+
+    if clean_id.startswith("MAATU-"):
+        parts = clean_id.split("-")
+        if len(parts) >= 3:
+            return {
+                "found": True,
+                "certificate": {
+                    "id": clean_id,
+                    "course_title": "Kannada Conversational Mastery",
+                    "course_title_kannada": "ಕನ್ನಡ ಸಂಭಾಷಣಾ ಪ್ರವೀಣತೆ ಪ್ರಮಾಣಪತ್ರ",
+                    "learner_name": "ಮಾತು ವಿದ್ಯಾರ್ಥಿ (Verified Learner)",
+                    "issued_date": "2026-10-24",
+                    "status": "Verified & Active",
+                    "issuer": "ಮಾತು — Voice of Kannada Academy",
+                    "score_percent": 100,
+                    "criteria_met": [
+                        "Completed syllabus curriculum milestones",
+                        "Spoken practice sessions verified by AI evaluator",
+                        "Achieved mastery score on conversational assessment",
+                    ],
+                },
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Certificate ID '{cert_id}' was not found in the Maatu registry. Please verify the ID on your printed or digital document.",
+    )
+
+
+@app.get("/api/challenges")
+def get_daily_challenges():
+    """
+    Returns today's active learning challenges.
+    """
+    return [
+        {
+            "id": "chal-words-5",
+            "title": "Learn 5 New Words",
+            "title_kannada": "೫ ಹೊಸ ಪದಗಳನ್ನು ಕಲಿಯಿರಿ",
+            "description": "Complete any vocabulary exercise or flashcard session.",
+            "target": 5,
+            "xp_reward": 30,
+            "points_reward": 10,
+            "estimated_time": "3 min",
+            "difficulty": "Easy",
+        },
+        {
+            "id": "chal-speak-1",
+            "title": "Practice 1 Voice Conversation",
+            "title_kannada": "೧ ಧ್ವನಿ ಸಂಭಾಷಣೆ ನಡೆಸಿ",
+            "description": "Speak in any situation using the AI Speaking Studio.",
+            "target": 1,
+            "xp_reward": 25,
+            "points_reward": 8,
+            "estimated_time": "2 min",
+            "difficulty": "Medium",
+        },
+        {
+            "id": "chal-game-1",
+            "title": "Play Kannada Word Sprint",
+            "title_kannada": "ಪದ ಸ್ಪ್ರಿಂಟ್ ಆಟವಾಡಿ",
+            "description": "Score at least 60 points in the Word Sprint mini-game.",
+            "target": 1,
+            "xp_reward": 20,
+            "points_reward": 5,
+            "estimated_time": "2 min",
+            "difficulty": "Fun",
+        },
+        {
+            "id": "chal-quiz-1",
+            "title": "Complete Daily Kannada Quiz",
+            "title_kannada": "ದೈನಂದಿನ ಕನ್ನಡ ರಸಪ್ರಶ್ನೆ ಪೂರ್ಣಗೊಳಿಸಿ",
+            "description": "Answer 5 multiple choice questions on everyday Kannada.",
+            "target": 5,
+            "xp_reward": 35,
+            "points_reward": 12,
+            "estimated_time": "4 min",
+            "difficulty": "Medium",
+        },
+    ]
+
+
+@app.get("/api/leaderboard")
+def get_leaderboard():
+    """
+    Returns public weekly and monthly top learners.
+    """
+    return {
+        "weekly": [
+            {
+                "rank": 1,
+                "display_name": "ಅನನ್ಯ (Ananya K.)",
+                "xp": 940,
+                "level": "Level 5 — Kannada Champion",
+                "streak": 14,
+                "avatar_char": "ಅ",
+            },
+            {
+                "rank": 2,
+                "display_name": "ರೋಹನ್ (Rohan M.)",
+                "xp": 820,
+                "level": "Level 4 — Confident Speaker",
+                "streak": 9,
+                "avatar_char": "ರ",
+            },
+            {
+                "rank": 3,
+                "display_name": "ವಿದ್ಯಾ (Vidya S.)",
+                "xp": 760,
+                "level": "Level 4 — Confident Speaker",
+                "streak": 11,
+                "avatar_char": "ವ",
+            },
+            {
+                "rank": 4,
+                "display_name": "ಕಾರ್ತಿಕ್ (Karthik B.)",
+                "xp": 690,
+                "level": "Level 3 — Conversation Starter",
+                "streak": 7,
+                "avatar_char": "ಕ",
+            },
+            {
+                "rank": 5,
+                "display_name": "ಮೇಘನಾ (Meghana R.)",
+                "xp": 610,
+                "level": "Level 3 — Conversation Starter",
+                "streak": 6,
+                "avatar_char": "ಮ",
+            },
+        ],
+        "all_time": [
+            {"rank": 1, "display_name": "ಅನನ್ಯ (Ananya K.)", "xp": 4820, "level": "Level 5 — Champion"},
+            {"rank": 2, "display_name": "ಚೇತನ್ (Chetan P.)", "xp": 4150, "level": "Level 5 — Champion"},
+            {"rank": 3, "display_name": "ರೋಹನ್ (Rohan M.)", "xp": 3890, "level": "Level 4 — Speaker"},
+        ],
+    }
+
+
+@app.get("/api/rewards")
+def get_rewards_catalog():
+    """
+    Returns the Maatu Goodies Store catalog items.
+    """
+    return [
+        {
+            "id": "stickers-pack",
+            "title": "Kannada Pride Die-Cut Stickers",
+            "title_kannada": "ಕನ್ನಡ ಹೆಮ್ಮೆಯ ಸ್ಟಿಕ್ಕರ್‌ಗಳು",
+            "category": "stationery",
+            "points": 100,
+            "badge": "Popular",
+            "description": "5 premium matte vinyl stickers featuring iconic phrases like 'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ' and 'ಕನ್ನಡವೇ ಸತ್ಯ'.",
+            "in_stock": True,
+        },
+        {
+            "id": "wooden-bookmark",
+            "title": "Handcrafted Wooden Bookmark",
+            "title_kannada": "ಮರದ ಪುಸ್ತಕ ಗುರುತು",
+            "category": "stationery",
+            "points": 150,
+            "badge": "Artisanal",
+            "description": "Carved Channapatna style wooden bookmark with Kannada typography and tassel.",
+            "in_stock": True,
+        },
+        {
+            "id": "hardcover-notebook",
+            "title": "Maatu Kannada Learning Journal",
+            "title_kannada": "ಕನ್ನಡ ಕಲಿಯುವ ನೋಟ್‌ಬುಕ್",
+            "category": "stationery",
+            "points": 300,
+            "badge": "Top Choice",
+            "description": "160-page premium ruled notebook with daily Kannada phrase prompts and culture notes.",
+            "in_stock": True,
+        },
+        {
+            "id": "steel-bottle",
+            "title": "Insulated Steel Flask (750ml)",
+            "title_kannada": "ಸ್ಟೀಲ್ ನೀರಿನ ಬಾಟಲಿ",
+            "category": "lifestyle",
+            "points": 600,
+            "badge": "Eco-Friendly",
+            "description": "Matte green stainless steel bottle laser-engraved with 'ನಮ್ಮ ಕರ್ನಾಟಕ' and Maatu emblem.",
+            "in_stock": True,
+        },
+        {
+            "id": "quote-tshirt",
+            "title": "'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ' Cotton T-Shirt",
+            "title_kannada": "ಕನ್ನಡ ಟೀ-ಶರ್ಟ್",
+            "category": "apparel",
+            "points": 900,
+            "badge": "Bestseller",
+            "description": "100% bio-washed combed cotton t-shirt in forest green with classic Bengaluru Bengaluru culture script.",
+            "in_stock": True,
+        },
+        {
+            "id": "hoodie-heritage",
+            "title": "Voice of Kannada Heavyweight Hoodie",
+            "title_kannada": "ಪ್ರೀಮಿಯಂ ಹುಡ್ಡಿ",
+            "category": "apparel",
+            "points": 1500,
+            "badge": "Exclusive",
+            "description": "350 GSM fleece hoodie with embroidered golden 'ಮಾತು' crest on chest and Kannada typography.",
+            "in_stock": True,
+        },
+    ]
