@@ -97,6 +97,9 @@ function App() {
   const [isSending, setIsSending] = useState(false);
   const [recognizedText, setRecognizedText] = useState("");
   const [practiceReply, setPracticeReply] = useState("");
+  const [practiceReplyEnglish, setPracticeReplyEnglish] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechMessage, setSpeechMessage] = useState("");
   const [practiceError, setPracticeError] = useState("");
 
   useEffect(() => {
@@ -129,6 +132,9 @@ function App() {
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
     };
   }, []);
 
@@ -150,6 +156,9 @@ function App() {
     setIsSending(true);
     setPracticeError("");
     setPracticeReply("");
+    setPracticeReplyEnglish("");
+    setSpeechMessage("");
+    stopSpeaking();
 
     try {
       const response = await fetch(`${API_URL}/api/practice`, {
@@ -171,9 +180,8 @@ function App() {
 
       const data = await response.json();
 
-      setPracticeReply(
-        `${data.reply_kannada ?? ""}\n${data.reply_english ?? ""}`.trim(),
-      );
+      setPracticeReply(data.reply_kannada ?? "");
+      setPracticeReplyEnglish(data.reply_english ?? "");
     } catch (error) {
       console.error("Practice request failed:", error);
       setPracticeError(
@@ -184,12 +192,73 @@ function App() {
     }
   }
 
+  function stopSpeaking() {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    setSpeechMessage("");
+  }
+
+  function speakKannada() {
+    const text = practiceReply.trim();
+
+    if (!text) {
+      setSpeechMessage("There is no Kannada reply to play yet.");
+      return;
+    }
+
+    if (!("speechSynthesis" in window)) {
+      setSpeechMessage(
+        "Audio playback is not supported in this browser. Try the latest Google Chrome.",
+      );
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "kn-IN";
+    utterance.rate = 0.85;
+    utterance.pitch = 1;
+
+    const voices = window.speechSynthesis.getVoices();
+    const kannadaVoice = voices.find(
+      (voice) => voice.lang.toLowerCase() === "kn-in",
+    );
+
+    if (kannadaVoice) {
+      utterance.voice = kannadaVoice;
+      setSpeechMessage(`Speaking with ${kannadaVoice.name}.`);
+    } else {
+      setSpeechMessage(
+        "No dedicated Kannada voice was found. Your browser will try its default voice for Kannada.",
+      );
+    }
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = (event) => {
+      setIsSpeaking(false);
+      if (event.error !== "canceled" && event.error !== "interrupted") {
+        setSpeechMessage(
+          "Could not play the audio. Check your browser's speech voice settings.",
+        );
+      }
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
   function startVoicePractice() {
     if (isListening || isSending) return;
 
+    stopSpeaking();
     setPracticeError("");
     setRecognizedText("");
     setPracticeReply("");
+    setPracticeReplyEnglish("");
 
     const browserWindow = window as Window & {
       SpeechRecognition?: new () => any;
@@ -273,7 +342,10 @@ function App() {
     setSelectedScenario(scenarioId);
     setPracticeError("");
     setRecognizedText("");
+    stopSpeaking();
     setPracticeReply("");
+    setPracticeReplyEnglish("");
+    setSpeechMessage("");
     setActiveTab("Practice");
   }
 
@@ -663,9 +735,12 @@ function App() {
                       }`}
                       onClick={() => {
                         setSelectedScenario(scenario.id);
+                        stopSpeaking();
                         setPracticeError("");
                         setRecognizedText("");
                         setPracticeReply("");
+                        setPracticeReplyEnglish("");
+                        setSpeechMessage("");
                       }}
                     >
                       <div className={`scenario-icon ${scenario.color}`}>
@@ -761,9 +836,52 @@ function App() {
                     style={{ marginTop: "12px" }}
                   >
                     <span>KANNADA RESPONSE</span>
-                    <strong style={{ whiteSpace: "pre-line" }}>
+                    <strong style={{ display: "block", whiteSpace: "pre-line" }}>
                       {practiceReply}
                     </strong>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: "10px",
+                        marginTop: "16px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="practice-button"
+                        onClick={speakKannada}
+                        disabled={isSpeaking}
+                      >
+                        <Volume2 size={17} />
+                        {isSpeaking ? "Speaking Kannada..." : "Listen to Kannada"}
+                      </button>
+
+                      {isSpeaking && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={stopSpeaking}
+                        >
+                          Stop audio
+                        </button>
+                      )}
+                    </div>
+
+                    {speechMessage && (
+                      <p role="status" style={{ marginTop: "10px" }}>
+                        {speechMessage}
+                      </p>
+                    )}
+
+                    {practiceReplyEnglish && (
+                      <div style={{ marginTop: "18px" }}>
+                        <span>ENGLISH MEANING</span>
+                        <p>{practiceReplyEnglish}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
