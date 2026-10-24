@@ -5471,3 +5471,104 @@ button {
   font-weight: 700;
   margin-right: 8px;
 }
+
+/* -------------------------------------------------------------
+   AUTH LOADING SPLASH & GATE CARD
+------------------------------------------------------------- */
+.auth-loading-splash {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg);
+  padding: 24px;
+}
+
+.splash-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 48px 40px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  max-width: 420px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.splash-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--color-gold-soft);
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+}
+
+.splash-card h2 {
+  font-size: 20px;
+  color: var(--color-primary);
+  margin-bottom: 24px;
+  letter-spacing: 0.5px;
+}
+
+.splash-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: splashSpin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes splashSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.splash-card p {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.auth-required-card {
+  max-width: 520px;
+  margin: 60px auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 48px 36px;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-lock-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-gold-soft);
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+}
+
+.auth-required-card h2 {
+  font-size: 22px;
+  color: var(--color-primary);
+  margin-bottom: 12px;
+}
+
+.auth-required-card p {
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 28px;
+}

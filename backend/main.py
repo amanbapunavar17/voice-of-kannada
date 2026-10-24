@@ -1,10 +1,10 @@
-
 import json
 import os
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
@@ -15,10 +15,11 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 app = FastAPI(
     title="Voice of Kannada API",
-    description="AI-powered Kannada conversation learning application",
-    version="2.0.0",
+    description="AI-powered Kannada learning platform backend with Supabase Auth & Gemini",
+    version="2.1.0",
 )
 
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -31,6 +32,104 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ====================================================================
+# SUPABASE CLIENT & AUTHENTICATION DEPENDENCY
+# ====================================================================
+
+def get_supabase_client():
+    """
+    Returns a configured Supabase client if environment variables are set.
+    Reads SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY.
+    """
+    url = os.getenv("SUPABASE_URL", "").strip()
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip() or os.getenv("SUPABASE_ANON_KEY", "").strip()
+
+    if not url or not key or url.startswith("https://your-project") or key.startswith("your-"):
+        return None
+
+    try:
+        from supabase import create_client
+        return create_client(url, key)
+    except Exception as e:
+        print(f"Failed to create Supabase client: {e}")
+        return None
+
+
+def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
+    """
+    Validates the Supabase bearer token if provided.
+    Returns user dict {id, email, metadata} or None if no token was passed.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+
+    token = authorization.split("Bearer ", 1)[1].strip()
+    if not token:
+        return None
+
+    client = get_supabase_client()
+    if not client:
+        return None
+
+    try:
+        user_res = client.auth.get_user(token)
+        if user_res and user_res.user:
+            return {
+                "id": str(user_res.user.id),
+                "email": user_res.user.email,
+                "metadata": user_res.user.user_metadata or {},
+            }
+        return None
+    except Exception as exc:
+        print(f"Token validation error: {exc}")
+        return None
+
+
+def get_current_user_required(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    """
+    Strict dependency requiring a valid, active Supabase bearer token.
+    Raises HTTP 401 Unauthorized if token is missing or invalid.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please provide a valid Supabase bearer token.",
+        )
+
+    token = authorization.split("Bearer ", 1)[1].strip()
+    client = get_supabase_client()
+
+    if not client:
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase backend is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env.",
+        )
+
+    try:
+        user_res = client.auth.get_user(token)
+        if not user_res or not user_res.user:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired session. Please sign in again.",
+            )
+        return {
+            "id": str(user_res.user.id),
+            "email": user_res.user.email,
+            "metadata": user_res.user.user_metadata or {},
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Authentication token verification failed: {str(exc)}",
+        ) from None
+
+
+# ====================================================================
+# CANONICAL KANNADA CONVERSATION SCENARIOS
+# ====================================================================
 
 SCENARIOS = {
     "daily": {
@@ -92,10 +191,38 @@ SCENARIOS = {
 }
 
 
+# ====================================================================
+# SCHEMAS
+# ====================================================================
+
 class PracticeRequest(BaseModel):
     scenario_id: str = "daily"
     recognized_text: str = Field(min_length=1, max_length=1000)
 
+
+class LessonProgressRequest(BaseModel):
+    lesson_id: str
+    score_percent: int = 100
+    xp_reward: int = 20
+    points_reward: int = 5
+
+
+class RedeemRewardRequest(BaseModel):
+    reward_id: str
+    shipping_name: str = Field(min_length=2, max_length=100)
+    shipping_contact: str = Field(min_length=6, max_length=50)
+    shipping_city: str = Field(min_length=2, max_length=50)
+    notes: Optional[str] = None
+
+
+class GeminiReplyPayload(BaseModel):
+    reply_kannada: str
+    reply_english: str
+
+
+# ====================================================================
+# GEMINI CLIENT HELPER
+# ====================================================================
 
 def get_gemini_client():
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
@@ -109,14 +236,20 @@ def get_gemini_client():
     return genai.Client(api_key=api_key)
 
 
+# ====================================================================
+# HEALTH & METADATA ENDPOINTS
+# ====================================================================
+
 @app.get("/api/health")
 def health_check():
-    configured = bool(os.getenv("GEMINI_API_KEY", "").strip())
+    ai_configured = bool(os.getenv("GEMINI_API_KEY", "").strip())
+    supabase_configured = bool(get_supabase_client())
 
     return {
         "status": "ok",
         "message": "Voice of Kannada backend is running",
-        "ai_configured": configured,
+        "ai_configured": ai_configured,
+        "supabase_configured": supabase_configured,
     }
 
 
@@ -135,8 +268,15 @@ def get_scenarios():
     ]
 
 
+# ====================================================================
+# AI SPEAKING PRACTICE (GEMINI INTEGRATION)
+# ====================================================================
+
 @app.post("/api/practice")
-def practice_conversation(request: PracticeRequest):
+def practice_conversation(
+    request: PracticeRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
     scenario = SCENARIOS.get(request.scenario_id)
 
     if scenario is None:
@@ -177,7 +317,6 @@ Your tasks:
 7. If the learner makes a Kannada mistake, gently explain a useful correction
    in the English explanation without embarrassing them.
 8. Never invent a fixed price, location, or factual detail when it is unknown.
-   Ask for clarification or use a clearly hypothetical example instead.
 9. Keep the response concise and suitable for a live conversation.
 
 Return ONLY valid JSON with these keys:
@@ -189,24 +328,30 @@ Return ONLY valid JSON with these keys:
 
     try:
         client = get_gemini_client()
+        model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
-        response = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema={
-                    "type": "OBJECT",
-                    "properties": {
-                        "reply_kannada": {"type": "STRING"},
-                        "reply_english": {"type": "STRING"},
-                    },
-                    "required": ["reply_kannada", "reply_english"],
-                },
-            ),
-        )
+        # Retry transient 503 spikes up to 2 times
+        response = None
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=GeminiReplyPayload,
+                    ),
+                )
+                if response and response.text:
+                    break
+            except Exception as e:
+                if "503" in str(e) and attempt < 2:
+                    import time
+                    time.sleep(1.5)
+                    continue
+                raise
 
-        if not response.text:
+        if not response or not response.text:
             raise ValueError("Gemini returned an empty response.")
 
         result = json.loads(response.text)
@@ -216,19 +361,35 @@ Return ONLY valid JSON with these keys:
         if not reply_kannada or not reply_english:
             raise ValueError("Gemini returned an incomplete response.")
 
+        # If user is authenticated and Supabase is configured, record practice session
+        if current_user:
+            sb = get_supabase_client()
+            if sb:
+                try:
+                    sb.table("practice_sessions").insert({
+                        "user_id": current_user["id"],
+                        "scenario_id": request.scenario_id,
+                        "recognized_speech": recognized_text,
+                        "ai_reply_kannada": reply_kannada,
+                        "ai_reply_english": reply_english,
+                        "xp_awarded": 15,
+                        "points_awarded": 3,
+                    }).execute()
+                except Exception as db_err:
+                    print(f"Could not log practice session to Supabase: {db_err}")
+
         return {
             "status": "ok",
             "recognized_text": recognized_text,
             "reply_kannada": reply_kannada,
             "reply_english": reply_english,
+            "authenticated": bool(current_user),
         }
 
     except HTTPException:
         raise
     except Exception as exc:
-        # Keep API credentials and internal exception details out of responses.
         print(f"Gemini practice request failed: {type(exc).__name__}: {exc}")
-
         raise HTTPException(
             status_code=502,
             detail=(
@@ -239,80 +400,320 @@ Return ONLY valid JSON with these keys:
         ) from None
 
 
-# Certificate catalog and verification database (in-memory demonstration store + Supabase sync)
-KNOWN_CERTIFICATES = {
-    "MAATU-KB-2026-89412": {
-        "id": "MAATU-KB-2026-89412",
-        "course_title": "Kannada Basics — Foundation Certificate",
-        "course_title_kannada": "ಕನ್ನಡ ಮೂಲಭೂತ ಪ್ರವೀಣತೆ ಪ್ರಮಾಣಪತ್ರ",
-        "learner_name": "ಕನ್ನಡ ಕಲಿ (Kannada Learner)",
-        "issued_date": "2026-10-24",
-        "status": "Verified & Active",
-        "issuer": "ಮಾತು — Voice of Kannada Academy",
-        "score_percent": 98,
-        "criteria_met": [
-            "Completed 10 core vocabulary lessons",
-            "Achieved 90%+ in the comprehensive Kannada Basics Quiz",
-            "Practiced spoken greetings and daily phrases with AI coach",
-        ],
-    },
-    "MAATU-EK-2026-40291": {
-        "id": "MAATU-EK-2026-40291",
-        "course_title": "Everyday Kannada — Practical Conversation",
-        "course_title_kannada": "ದೈನಂದಿನ ಸಂಭಾಷಣೆ ಪ್ರವೀಣತೆ",
-        "learner_name": "ಅನ್ವೇಷಕ (Pioneer)",
-        "issued_date": "2026-10-20",
-        "status": "Verified & Active",
-        "issuer": "ಮಾತು — Voice of Kannada Academy",
-        "score_percent": 95,
-        "criteria_met": [
-            "Completed Food, Shopping, and Travel modules",
-            "Completed 5 real-world spoken dialogue simulations",
-            "Maintained a 7-day learning streak",
-        ],
-    },
-}
-
+# ====================================================================
+# AUTHENTIC CERTIFICATE VERIFICATION (REAL DATABASE QUERY)
+# ====================================================================
 
 @app.get("/api/verify-certificate/{cert_id}")
 def verify_certificate(cert_id: str):
     """
-    Public Certificate Verification Endpoint.
-    Validates certificate ID against authentic records or verified format.
+    Verifies certificate ID against real persisted database records.
+    Unknown, revoked, or unverified IDs return HTTP 404.
     """
     clean_id = cert_id.strip().upper()
-    cert = KNOWN_CERTIFICATES.get(clean_id)
+    client = get_supabase_client()
 
-    if cert:
-        return {"found": True, "certificate": cert}
+    if client:
+        try:
+            res = (
+                client.table("certificates")
+                .select("*")
+                .eq("id", clean_id)
+                .eq("is_revoked", False)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                cert = res.data[0]
+                return {
+                    "found": True,
+                    "certificate": {
+                        "id": cert["id"],
+                        "course_title": cert["course_title"],
+                        "course_title_kannada": cert["course_title_kannada"],
+                        "learner_name": cert["learner_name"],
+                        "issued_date": str(cert["issued_at"])[:10],
+                        "status": "Verified & Active",
+                        "issuer": "ಮಾತು — Voice of Kannada Academy",
+                        "score_percent": cert.get("score_percent", 100),
+                        "criteria_met": cert.get("requirements_met", []),
+                    },
+                }
+        except Exception as e:
+            print(f"Supabase certificate lookup error: {e}")
 
-    # Verify dynamically issued user certificate pattern: MAATU-[A-Z0-9]{2,4}-\d{4}-[A-Z0-9]+
-    if clean_id.startswith("MAATU-"):
-        parts = clean_id.split("-")
-        if len(parts) >= 3:
-            return {
-                "found": True,
-                "certificate": {
-                    "id": clean_id,
-                    "course_title": "Kannada Conversational Mastery",
-                    "course_title_kannada": "ಕನ್ನಡ ಸಂಭಾಷಣಾ ಪ್ರವೀಣತೆ ಪ್ರಮಾಣಪತ್ರ",
-                    "learner_name": "ಮಾತು ವಿದ್ಯಾರ್ಥಿ (Verified Learner)",
-                    "issued_date": "2026-10-24",
-                    "status": "Verified & Active",
-                    "issuer": "ಮಾತು — Voice of Kannada Academy",
-                    "score_percent": 100,
-                    "criteria_met": [
-                        "Completed syllabus curriculum milestones",
-                        "Spoken practice sessions verified by AI evaluator",
-                        "Achieved mastery score on conversational assessment",
-                    ],
-                },
-            }
-
+    # No fake wildcard matching! Return 404 if not found in database.
     raise HTTPException(
         status_code=404,
         detail=f"Certificate ID '{cert_id}' was not found in the Maatu registry. Please verify the ID on your printed or digital document.",
     )
+
+
+# ====================================================================
+# GENUINE LEADERBOARD (REAL USERS ONLY)
+# ====================================================================
+
+@app.get("/api/leaderboard")
+def get_leaderboard():
+    """
+    Returns public top learners querying genuine profiles from Supabase.
+    If no users exist or Supabase is not configured, returns empty list (no fake users).
+    """
+    client = get_supabase_client()
+    if client:
+        try:
+            res = (
+                client.table("profiles")
+                .select("display_name, xp_balance, kannada_level, current_streak, avatar_url")
+                .eq("is_public_leaderboard", True)
+                .order("xp_balance", desc=True)
+                .limit(25)
+                .execute()
+            )
+
+            if res.data and len(res.data) > 0:
+                leaders = []
+                for idx, p in enumerate(res.data, start=1):
+                    name = p.get("display_name") or "ಕನ್ನಡ ಕಲಿ"
+                    leaders.append({
+                        "rank": idx,
+                        "display_name": name,
+                        "xp": p.get("xp_balance", 0),
+                        "level": p.get("kannada_level", "Beginner"),
+                        "streak": p.get("current_streak", 0),
+                        "avatar_char": name[0].upper() if name else "ಅ",
+                    })
+                return {"weekly": leaders, "all_time": leaders}
+        except Exception as e:
+            print(f"Leaderboard query error: {e}")
+
+    # Return empty list rather than fake participants
+    return {"weekly": [], "all_time": []}
+
+
+# ====================================================================
+# STORE CATALOG & PROTECTED REWARD REDEMPTION
+# ====================================================================
+
+@app.get("/api/rewards")
+def get_rewards_catalog():
+    """
+    Returns the real catalog items. Fetches from Supabase rewards_catalog if present.
+    """
+    client = get_supabase_client()
+    if client:
+        try:
+            res = (
+                client.table("rewards_catalog")
+                .select("*")
+                .eq("in_stock", True)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                return res.data
+        except Exception as e:
+            print(f"Rewards catalog fetch from Supabase failed: {e}")
+
+    # Static catalog fallback
+    return [
+        {
+            "id": "stickers-pack",
+            "title": "Kannada Pride Die-Cut Stickers",
+            "title_kannada": "ಕನ್ನಡ ಹೆಮ್ಮೆಯ ಸ್ಟಿಕ್ಕರ್‌ಗಳು",
+            "category": "stationery",
+            "points_required": 100,
+            "badge_label": "Popular",
+            "description": "5 premium matte vinyl stickers featuring iconic phrases like 'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ' and 'ಕನ್ನಡವೇ ಸತ್ಯ'.",
+            "in_stock": True,
+        },
+        {
+            "id": "wooden-bookmark",
+            "title": "Handcrafted Wooden Bookmark",
+            "title_kannada": "ಮರದ ಪುಸ್ತಕ ಗುರುತು",
+            "category": "stationery",
+            "points_required": 150,
+            "badge_label": "Artisanal",
+            "description": "Carved Channapatna style wooden bookmark with Kannada typography and tassel.",
+            "in_stock": True,
+        },
+        {
+            "id": "hardcover-notebook",
+            "title": "Maatu Kannada Learning Journal",
+            "title_kannada": "ಕನ್ನಡ ಕಲಿಯುವ ನೋಟ್‌ಬುಕ್",
+            "category": "stationery",
+            "points_required": 300,
+            "badge_label": "Top Choice",
+            "description": "160-page premium ruled notebook with daily Kannada phrase prompts and culture notes.",
+            "in_stock": True,
+        },
+        {
+            "id": "steel-bottle",
+            "title": "Insulated Steel Flask (750ml)",
+            "title_kannada": "ಸ್ಟೀಲ್ ನೀರಿನ ಬಾಟಲಿ",
+            "category": "lifestyle",
+            "points_required": 600,
+            "badge_label": "Eco-Friendly",
+            "description": "Matte green stainless steel bottle laser-engraved with 'ನಮ್ಮ ಕರ್ನಾಟಕ' and Maatu emblem.",
+            "in_stock": True,
+        },
+        {
+            "id": "quote-tshirt",
+            "title": "'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ' Cotton T-Shirt",
+            "title_kannada": "ಕನ್ನಡ ಟೀ-ಶರ್ಟ್",
+            "category": "apparel",
+            "points_required": 900,
+            "badge_label": "Bestseller",
+            "description": "100% bio-washed combed cotton t-shirt in forest green with classic Bengaluru Bengaluru culture script.",
+            "in_stock": True,
+        },
+        {
+            "id": "hoodie-heritage",
+            "title": "Voice of Kannada Heavyweight Hoodie",
+            "title_kannada": "ಪ್ರೀಮಿಯಂ ಹುಡ್ಡಿ",
+            "category": "apparel",
+            "points_required": 1500,
+            "badge_label": "Exclusive",
+            "description": "350 GSM fleece hoodie with embroidered golden 'ಮಾತು' crest on chest and Kannada typography.",
+            "in_stock": True,
+        },
+    ]
+
+
+@app.post("/api/redeem")
+def redeem_reward(
+    request: RedeemRewardRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """
+    Atomic reward redemption. Validates real user balance, updates points,
+    and creates order record.
+    """
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase is not configured to process live redemptions.",
+        )
+
+    order_id = f"ORD-MAATU-{int(os.urandom(3).hex(), 16) % 9000 + 1000}"
+
+    try:
+        # Call secure atomic stored procedure
+        rpc_res = client.rpc(
+            "redeem_reward_secure",
+            {
+                "p_reward_id": request.reward_id,
+                "p_shipping_name": request.shipping_name.strip(),
+                "p_shipping_contact": request.shipping_contact.strip(),
+                "p_shipping_city": request.shipping_city.strip(),
+                "p_order_id": order_id,
+            },
+        ).execute()
+
+        if rpc_res.data:
+            return rpc_res.data
+
+        return {
+            "success": True,
+            "order_id": order_id,
+            "status": "pending",
+            "message": "Redemption request submitted successfully.",
+        }
+    except Exception as exc:
+        err_msg = str(exc)
+        if "Insufficient" in err_msg:
+            raise HTTPException(status_code=400, detail=err_msg) from None
+        raise HTTPException(status_code=500, detail=f"Redemption failed: {err_msg}") from None
+
+
+# ====================================================================
+# PROTECTED LESSON PROGRESS (IDEMPOTENT XP & POINTS ATTRIBUTION)
+# ====================================================================
+
+@app.post("/api/progress/lesson")
+def record_lesson_progress(
+    request: LessonProgressRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """
+    Saves completed lesson progress and awards XP/points with idempotency protection.
+    """
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Supabase is not configured.")
+
+    user_id = current_user["id"]
+    idempotency_key = f"lesson:{user_id}:{request.lesson_id}"
+
+    try:
+        # 1. Check if lesson was already completed
+        existing = (
+            client.table("user_lesson_progress")
+            .select("is_completed")
+            .eq("user_id", user_id)
+            .eq("lesson_id", request.lesson_id)
+            .execute()
+        )
+
+        is_already_completed = (
+            existing.data and len(existing.data) > 0 and existing.data[0].get("is_completed")
+        )
+
+        # 2. Upsert lesson progress
+        client.table("user_lesson_progress").upsert({
+            "user_id": user_id,
+            "lesson_id": request.lesson_id,
+            "is_completed": True,
+            "score_percent": request.score_percent,
+            "completed_at": "now()",
+        }).execute()
+
+        # 3. Only award currency if first time completion
+        awarded_xp = 0
+        awarded_points = 0
+
+        if not is_already_completed:
+            awarded_xp = request.xp_reward
+            awarded_points = request.points_reward
+
+            # Record point transactions with unique idempotency key
+            client.table("point_transactions").insert([
+                {
+                    "user_id": user_id,
+                    "currency_type": "XP",
+                    "amount": awarded_xp,
+                    "reason": f"Completed lesson: {request.lesson_id}",
+                    "reference_id": f"lesson:{request.lesson_id}",
+                    "idempotency_key": f"{idempotency_key}:xp",
+                },
+                {
+                    "user_id": user_id,
+                    "currency_type": "MAATU_POINTS",
+                    "amount": awarded_points,
+                    "reason": f"Completed lesson: {request.lesson_id}",
+                    "reference_id": f"lesson:{request.lesson_id}",
+                    "idempotency_key": f"{idempotency_key}:pts",
+                },
+            ]).execute()
+
+            # Increment user profile balance
+            profile_res = client.table("profiles").select("xp_balance, points_balance").eq("id", user_id).single().execute()
+            if profile_res.data:
+                curr_xp = profile_res.data.get("xp_balance", 0)
+                curr_pts = profile_res.data.get("points_balance", 0)
+                client.table("profiles").update({
+                    "xp_balance": curr_xp + awarded_xp,
+                    "points_balance": curr_pts + awarded_points,
+                    "updated_at": "now()",
+                }).eq("id", user_id).execute()
+
+        return {
+            "success": True,
+            "first_time": not is_already_completed,
+            "xp_awarded": awarded_xp,
+            "points_awarded": awarded_points,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to record lesson progress: {str(exc)}") from None
 
 
 @app.get("/api/challenges")
@@ -364,130 +765,5 @@ def get_daily_challenges():
             "points_reward": 12,
             "estimated_time": "4 min",
             "difficulty": "Medium",
-        },
-    ]
-
-
-@app.get("/api/leaderboard")
-def get_leaderboard():
-    """
-    Returns public weekly and monthly top learners.
-    """
-    return {
-        "weekly": [
-            {
-                "rank": 1,
-                "display_name": "ಅನನ್ಯ (Ananya K.)",
-                "xp": 940,
-                "level": "Level 5 — Kannada Champion",
-                "streak": 14,
-                "avatar_char": "ಅ",
-            },
-            {
-                "rank": 2,
-                "display_name": "ರೋಹನ್ (Rohan M.)",
-                "xp": 820,
-                "level": "Level 4 — Confident Speaker",
-                "streak": 9,
-                "avatar_char": "ರ",
-            },
-            {
-                "rank": 3,
-                "display_name": "ವಿದ್ಯಾ (Vidya S.)",
-                "xp": 760,
-                "level": "Level 4 — Confident Speaker",
-                "streak": 11,
-                "avatar_char": "ವ",
-            },
-            {
-                "rank": 4,
-                "display_name": "ಕಾರ್ತಿಕ್ (Karthik B.)",
-                "xp": 690,
-                "level": "Level 3 — Conversation Starter",
-                "streak": 7,
-                "avatar_char": "ಕ",
-            },
-            {
-                "rank": 5,
-                "display_name": "ಮೇಘನಾ (Meghana R.)",
-                "xp": 610,
-                "level": "Level 3 — Conversation Starter",
-                "streak": 6,
-                "avatar_char": "ಮ",
-            },
-        ],
-        "all_time": [
-            {"rank": 1, "display_name": "ಅನನ್ಯ (Ananya K.)", "xp": 4820, "level": "Level 5 — Champion"},
-            {"rank": 2, "display_name": "ಚೇತನ್ (Chetan P.)", "xp": 4150, "level": "Level 5 — Champion"},
-            {"rank": 3, "display_name": "ರೋಹನ್ (Rohan M.)", "xp": 3890, "level": "Level 4 — Speaker"},
-        ],
-    }
-
-
-@app.get("/api/rewards")
-def get_rewards_catalog():
-    """
-    Returns the Maatu Goodies Store catalog items.
-    """
-    return [
-        {
-            "id": "stickers-pack",
-            "title": "Kannada Pride Die-Cut Stickers",
-            "title_kannada": "ಕನ್ನಡ ಹೆಮ್ಮೆಯ ಸ್ಟಿಕ್ಕರ್‌ಗಳು",
-            "category": "stationery",
-            "points": 100,
-            "badge": "Popular",
-            "description": "5 premium matte vinyl stickers featuring iconic phrases like 'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ' and 'ಕನ್ನಡವೇ ಸತ್ಯ'.",
-            "in_stock": True,
-        },
-        {
-            "id": "wooden-bookmark",
-            "title": "Handcrafted Wooden Bookmark",
-            "title_kannada": "ಮರದ ಪುಸ್ತಕ ಗುರುತು",
-            "category": "stationery",
-            "points": 150,
-            "badge": "Artisanal",
-            "description": "Carved Channapatna style wooden bookmark with Kannada typography and tassel.",
-            "in_stock": True,
-        },
-        {
-            "id": "hardcover-notebook",
-            "title": "Maatu Kannada Learning Journal",
-            "title_kannada": "ಕನ್ನಡ ಕಲಿಯುವ ನೋಟ್‌ಬುಕ್",
-            "category": "stationery",
-            "points": 300,
-            "badge": "Top Choice",
-            "description": "160-page premium ruled notebook with daily Kannada phrase prompts and culture notes.",
-            "in_stock": True,
-        },
-        {
-            "id": "steel-bottle",
-            "title": "Insulated Steel Flask (750ml)",
-            "title_kannada": "ಸ್ಟೀಲ್ ನೀರಿನ ಬಾಟಲಿ",
-            "category": "lifestyle",
-            "points": 600,
-            "badge": "Eco-Friendly",
-            "description": "Matte green stainless steel bottle laser-engraved with 'ನಮ್ಮ ಕರ್ನಾಟಕ' and Maatu emblem.",
-            "in_stock": True,
-        },
-        {
-            "id": "quote-tshirt",
-            "title": "'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ' Cotton T-Shirt",
-            "title_kannada": "ಕನ್ನಡ ಟೀ-ಶರ್ಟ್",
-            "category": "apparel",
-            "points": 900,
-            "badge": "Bestseller",
-            "description": "100% bio-washed combed cotton t-shirt in forest green with classic Bengaluru Bengaluru culture script.",
-            "in_stock": True,
-        },
-        {
-            "id": "hoodie-heritage",
-            "title": "Voice of Kannada Heavyweight Hoodie",
-            "title_kannada": "ಪ್ರೀಮಿಯಂ ಹುಡ್ಡಿ",
-            "category": "apparel",
-            "points": 1500,
-            "badge": "Exclusive",
-            "description": "350 GSM fleece hoodie with embroidered golden 'ಮಾತು' crest on chest and Kannada typography.",
-            "in_stock": True,
         },
     ]

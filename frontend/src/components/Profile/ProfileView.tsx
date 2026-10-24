@@ -7,10 +7,14 @@ import {
   CheckCircle2,
   Trash2,
   RefreshCw,
+  LogOut,
+  Shield,
+  User,
 } from "lucide-react";
 import type { UserProfile, CertificateRecord, KannadaLevel } from "../../types";
 import { storage } from "../../services/storage";
 import { calculateLevel } from "../../data/badgesData";
+import { useAuth } from "../../context/AuthContext";
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -25,25 +29,45 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onProfileUpdated,
   onOpenAuth,
 }) => {
+  const { signOut, updateProfileData, authUser } = useAuth();
+
   const [displayName, setDisplayName] = useState(user.displayName);
   const [level, setLevel] = useState<KannadaLevel>(user.level);
   const [dailyGoalMinutes, setDailyGoalMinutes] = useState(user.dailyGoalMinutes);
   const [isPublic, setIsPublic] = useState(user.isPublicLeaderboard);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const { currentLevel } = calculateLevel(user.xp);
 
-  function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    setIsSaving(true);
+
+    const cleanName = displayName.trim() || user.displayName;
+
+    // 1. Update in local storage
     const updated: UserProfile = {
       ...user,
-      displayName: displayName.trim() || user.displayName,
+      displayName: cleanName,
       level,
       dailyGoalMinutes,
       isPublicLeaderboard: isPublic,
-      avatarChar: displayName.trim().charAt(0).toUpperCase() || "ಅ",
+      avatarChar: cleanName.charAt(0).toUpperCase() || "ಅ",
     };
     storage.saveUser(updated);
+
+    // 2. Sync to Supabase if authenticated
+    if (authUser) {
+      await updateProfileData({
+        displayName: cleanName,
+        level,
+        dailyGoalMinutes,
+        isPublicLeaderboard: isPublic,
+      });
+    }
+
+    setIsSaving(false);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2500);
     onProfileUpdated();
@@ -57,12 +81,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   function handleReset() {
     if (
       window.confirm(
-        "Are you sure you want to reset all learning progress, points, and streaks? This cannot be undone."
+        "Are you sure you want to reset all local learning cache? This cannot be undone."
       )
     ) {
       storage.resetAllData();
       window.location.reload();
     }
+  }
+
+  async function handleSignOut() {
+    await signOut();
+    window.location.reload();
   }
 
   return (
@@ -84,7 +113,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <div className="profile-avatar-giant">
               <span>{user.avatarChar || "ಅ"}</span>
             </div>
-            <h2>{user.displayName}</h2>
+            <h2>{user.displayName || "ಕನ್ನಡ ಕಲಿ"}</h2>
             <div className="profile-role-badge">
               <span>{currentLevel.title}</span> ({currentLevel.titleKannada})
             </div>
@@ -108,9 +137,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             </div>
 
-            {!user.isAuthenticated && (
-              <button className="primary-button full-width" onClick={onOpenAuth}>
-                Sign In to Sync Progress
+            {user.isAuthenticated ? (
+              <button
+                type="button"
+                className="secondary-button full-width"
+                onClick={handleSignOut}
+                style={{ marginTop: "1rem", color: "#C84C4C", borderColor: "#E9E4D9" }}
+              >
+                <LogOut size={16} /> Sign Out
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary-button full-width"
+                onClick={onOpenAuth}
+                style={{ marginTop: "1rem" }}
+              >
+                <User size={16} /> Sign In to Sync Progress
               </button>
             )}
           </div>
@@ -119,15 +162,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="profile-certs-panel">
             <h3>Earned Certificates ({certificates.length})</h3>
             {certificates.length === 0 ? (
-              <p className="empty-subtext">No certificates claimed yet. Complete course modules to earn.</p>
+              <p className="no-certs-text">
+                No certificates earned yet. Complete the foundational curriculum modules to unlock your first verified certificate.
+              </p>
             ) : (
-              <div className="profile-cert-items">
-                {certificates.map((c) => (
-                  <div key={c.id} className="profile-cert-row">
-                    <Award size={18} color="#D4A64A" />
+              <div className="profile-certs-list">
+                {certificates.map((cert) => (
+                  <div key={cert.id} className="profile-cert-chip">
+                    <Award size={16} color="#D4A64A" />
                     <div>
-                      <strong>{c.courseTitle}</strong>
-                      <span className="cert-mono">{c.id}</span>
+                      <strong>{cert.courseTitle}</strong>
+                      <span>ID: {cert.id}</span>
                     </div>
                   </div>
                 ))}
@@ -137,9 +182,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
 
         {/* Right Column: Settings Form */}
-        <div className="profile-settings-col">
-          <form onSubmit={handleSave} className="profile-settings-form">
-            <h3>Preferences & Goals</h3>
+        <div className="profile-form-col">
+          <form onSubmit={handleSave} className="profile-form-card">
+            <h3>Learning Preferences</h3>
 
             <div className="form-group">
               <label>Public Display Name</label>
@@ -147,49 +192,51 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="How your name appears on leaderboards & certificates"
+                placeholder="Your Name or Kannada Pen Name"
                 required
               />
+              <span className="input-hint">
+                Visible on public leaderboards. Never reveals your email or personal credentials.
+              </span>
             </div>
 
             <div className="form-group">
-              <label>Current Kannada Level</label>
+              <label>Current Kannada Proficiency Level</label>
               <select
                 value={level}
                 onChange={(e) => setLevel(e.target.value as KannadaLevel)}
-                className="select-dropdown"
               >
-                <option value="Beginner">Beginner (Zero / Few Words)</option>
-                <option value="Elementary">Elementary (Basic Phrases)</option>
-                <option value="Intermediate">Intermediate (Understand, Practicing Speech)</option>
-                <option value="Advanced">Advanced (Fluent Conversations)</option>
+                <option value="Beginner">Beginner (ಹರಿಕಾರ) — Starting from scratch</option>
+                <option value="Elementary">Elementary (ಪ್ರಾಥಮಿಕ) — Know basic words & greetings</option>
+                <option value="Intermediate">Intermediate (ಮಧ್ಯಮ) — Can form simple sentences</option>
+                <option value="Advanced">Advanced (ಪ್ರವೀಣ) — Seeking conversational fluency</option>
               </select>
             </div>
 
             <div className="form-group">
               <label>Daily Study Commitment</label>
-              <div className="time-chips-row">
-                {[5, 15, 30, 45].map((mins) => (
+              <div className="daily-goal-options">
+                {[10, 15, 20, 30].map((mins) => (
                   <button
                     key={mins}
                     type="button"
-                    className={`time-chip ${dailyGoalMinutes === mins ? "selected" : ""}`}
+                    className={`goal-btn ${dailyGoalMinutes === mins ? "active" : ""}`}
                     onClick={() => setDailyGoalMinutes(mins)}
                   >
-                    {mins} mins
+                    {mins} mins / day
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="form-group-checkbox">
+            <div className="form-group">
               <label className="checkbox-label">
                 <input
                   type="checkbox"
                   checked={isPublic}
                   onChange={(e) => setIsPublic(e.target.checked)}
                 />
-                <span>Include my display name on public Community Leaderboards</span>
+                <span>Include my display name on weekly public leaderboards</span>
               </label>
             </div>
 
@@ -199,18 +246,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             )}
 
-            <button type="submit" className="primary-button">
-              Save Preferences
+            <button type="submit" className="primary-button" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Preferences"}
             </button>
           </form>
 
           {/* Account & Storage Utilities */}
           <div className="profile-utilities-card">
-            <h3>Account & Data Integrity</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <Shield size={18} color="#174B3A" />
+              <h3 style={{ margin: 0 }}>Account & Data Integrity</h3>
+            </div>
             <div className="utility-action-row">
               <div>
                 <strong>Reconcile Balances</strong>
-                <p>Verifies XP and points directly against transaction logs.</p>
+                <p>Verifies XP and points directly against auditable transaction logs.</p>
               </div>
               <button
                 type="button"
@@ -223,8 +273,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             <div className="utility-action-row danger">
               <div>
-                <strong>Reset Learning Progress</strong>
-                <p>Clears stored progress and resets habits back to day one.</p>
+                <strong>Reset Local Progress</strong>
+                <p>Clears cached local progress if you want to start fresh.</p>
               </div>
               <button
                 type="button"

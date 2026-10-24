@@ -1,19 +1,20 @@
 import React, { useState } from "react";
-import { X, Mail, Lock, User, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
-import { storage } from "../../services/storage";
-import type { UserProfile } from "../../types";
+import { X, Mail, Lock, User, ArrowRight, Sparkles, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthenticated: (user: UserProfile) => void;
+  onSuccess?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
-  onAuthenticated,
+  onSuccess,
 }) => {
+  const { signIn, signUp, resetPassword, isConfigured, configMessage } = useAuth();
+
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,22 +25,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setSuccessMsg("");
 
-    if (!email || !email.includes("@")) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
       setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!isConfigured) {
+      setError(
+        "Supabase credentials are not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to frontend/.env to enable live authentication."
+      );
       return;
     }
 
     if (mode === "forgot") {
       setIsLoading(true);
-      setTimeout(() => {
+      try {
+        const result = await resetPassword(cleanEmail);
         setIsLoading(false);
-        setSuccessMsg(`Password reset instructions have been dispatched to ${email}.`);
-      }, 700);
+        if (result.success) {
+          setSuccessMsg(
+            `Password reset link has been dispatched to ${cleanEmail}. Check your inbox.`
+          );
+        } else {
+          setError(result.error || "Failed to send reset email.");
+        }
+      } catch (err: any) {
+        setIsLoading(false);
+        setError(err.message || "An unexpected error occurred.");
+      }
       return;
     }
 
@@ -50,35 +69,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      if (mode === "signin") {
+        const result = await signIn(cleanEmail, password);
+        setIsLoading(false);
+        if (result.success) {
+          if (onSuccess) onSuccess();
+          onClose();
+        } else {
+          setError(result.error || "Invalid login credentials.");
+        }
+      } else {
+        // Sign up
+        const result = await signUp(cleanEmail, password, displayName);
+        setIsLoading(false);
+        if (result.success) {
+          if (result.needsVerification) {
+            setSuccessMsg(
+              `Account created! A confirmation email has been sent to ${cleanEmail}. Please verify your email to log in.`
+            );
+          } else {
+            if (onSuccess) onSuccess();
+            onClose();
+          }
+        } else {
+          setError(result.error || "Registration could not be completed.");
+        }
+      }
+    } catch (err: any) {
       setIsLoading(false);
-      const existingUser = storage.getUser();
-      const name = displayName.trim() || email.split("@")[0] || "ಕನ್ನಡ ಕಲಿ";
-
-      const updatedUser: UserProfile = {
-        ...existingUser,
-        email,
-        displayName: name,
-        avatarChar: name.charAt(0).toUpperCase() || "ಅ",
-        isAuthenticated: true,
-      };
-
-      storage.saveUser(updatedUser);
-      onAuthenticated(updatedUser);
-      onClose();
-    }, 600);
-  }
-
-  function handleContinueAsGuest() {
-    const existingUser = storage.getUser();
-    const guestUser: UserProfile = {
-      ...existingUser,
-      displayName: "Guest Learner (ಅತಿಥಿ)",
-      isAuthenticated: true,
-    };
-    storage.saveUser(guestUser);
-    onAuthenticated(guestUser);
-    onClose();
+      setError(err.message || "Authentication error occurred.");
+    }
   }
 
   return (
@@ -97,10 +118,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 : "Reset Your Password"}
             </h3>
           </div>
-          <button className="icon-close-btn" onClick={onClose}>
+          <button className="icon-close-btn" onClick={onClose} aria-label="Close">
             <X size={20} />
           </button>
         </div>
+
+        {!isConfigured && (
+          <div className="form-alert warning" style={{ marginBottom: "1rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+              <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
+              <div>
+                <strong>Supabase Authentication Required:</strong>
+                <p style={{ margin: "4px 0 0", fontSize: "0.85rem" }}>
+                  {configMessage || "Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in frontend/.env to enable live sign-in and account registration."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="auth-tab-buttons">
           <button
@@ -133,10 +168,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <User size={18} />
                 <input
                   type="text"
-                  placeholder="e.g. Arun Kumar or ಅನನ್ಯ"
+                  placeholder="e.g. Ananya or ಅರುಣ್"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   required
+                  autoComplete="name"
                 />
               </div>
             </div>
@@ -152,6 +188,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
               />
             </div>
           </div>
@@ -167,6 +204,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onClick={() => {
                       setMode("forgot");
                       setError("");
+                      setSuccessMsg("");
                     }}
                   >
                     Forgot password?
@@ -181,15 +219,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={6}
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 />
               </div>
             </div>
           )}
 
-          {error && <div className="form-alert error">{error}</div>}
-          {successMsg && <div className="form-alert success">{successMsg}</div>}
+          {error && (
+            <div className="form-alert error" role="alert">
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
 
-          <button type="submit" className="primary-button full-width" disabled={isLoading}>
+          {successMsg && (
+            <div className="form-alert success" role="status">
+              <CheckCircle2 size={16} />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="primary-button full-width"
+            disabled={isLoading || !isConfigured}
+          >
             {isLoading
               ? "Connecting..."
               : mode === "signin"
@@ -201,22 +256,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </form>
 
-        <div className="auth-divider">
-          <span>OR</span>
-        </div>
-
-        <button
-          type="button"
-          className="guest-login-btn"
-          onClick={handleContinueAsGuest}
-        >
-          <ShieldCheck size={17} color="#26845B" />
-          Continue as Guest Learner (Instant Access)
-        </button>
-
         <div className="auth-footer-notice">
           <span>
-            Database Architecture: Ready for Supabase PostgreSQL authentication with Row Level Security.
+            Secured by Supabase Auth & PostgreSQL Row Level Security (RLS). No plaintext passwords or client-supplied privileges.
           </span>
         </div>
       </div>
