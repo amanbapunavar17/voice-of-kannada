@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { getSupabaseClient, supabase } from "./supabase";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -20,9 +20,10 @@ export interface ScenarioApiResponse {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
-  if (supabase) {
+  const client = getSupabaseClient() || supabase;
+  if (client) {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await client.auth.getSession();
       if (session?.access_token) {
         return {
           Authorization: `Bearer ${session.access_token}`,

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Mail, Lock, User, ArrowRight, Sparkles, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
@@ -23,7 +23,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // Reset all fields when modal opens or closes
+  useEffect(() => {
+    if (isOpen) {
+      setEmail("");
+      setPassword("");
+      setDisplayName("");
+      setError("");
+      setSuccessMsg("");
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  function switchMode(newMode: "signin" | "signup" | "forgot") {
+    setMode(newMode);
+    setEmail("");
+    setPassword("");
+    setDisplayName("");
+    setError("");
+    setSuccessMsg("");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +58,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     if (!isConfigured) {
       setError(
-        "Supabase credentials are not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to frontend/.env to enable live authentication."
+        "Supabase credentials are not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to frontend/.env (save the file and restart Vite dev server)."
       );
       return;
     }
@@ -50,7 +70,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setIsLoading(false);
         if (result.success) {
           setSuccessMsg(
-            `Password reset link has been dispatched to ${cleanEmail}. Check your inbox.`
+            `Password recovery link has been sent to ${cleanEmail}. Please check your inbox.`
           );
         } else {
           setError(result.error || "Failed to send reset email.");
@@ -86,7 +106,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         if (result.success) {
           if (result.needsVerification) {
             setSuccessMsg(
-              `Account created! A confirmation email has been sent to ${cleanEmail}. Please verify your email to log in.`
+              `Account created! A confirmation email has been sent to ${cleanEmail}. Please verify your email before logging in.`
             );
           } else {
             if (onSuccess) onSuccess();
@@ -123,6 +143,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
+        {/* Warning banner is displayed ONLY if credentials are missing or invalid */}
         {!isConfigured && (
           <div className="form-alert warning" style={{ marginBottom: "1rem" }}>
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
@@ -130,7 +151,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div>
                 <strong>Supabase Authentication Required:</strong>
                 <p style={{ margin: "4px 0 0", fontSize: "0.85rem" }}>
-                  {configMessage || "Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in frontend/.env to enable live sign-in and account registration."}
+                  {configMessage || "Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in frontend/.env to enable live sign-in."}
                 </p>
               </div>
             </div>
@@ -139,28 +160,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         <div className="auth-tab-buttons">
           <button
+            type="button"
             className={`auth-tab-btn ${mode === "signin" ? "active" : ""}`}
-            onClick={() => {
-              setMode("signin");
-              setError("");
-              setSuccessMsg("");
-            }}
+            onClick={() => switchMode("signin")}
           >
             Sign In
           </button>
           <button
+            type="button"
             className={`auth-tab-btn ${mode === "signup" ? "active" : ""}`}
-            onClick={() => {
-              setMode("signup");
-              setError("");
-              setSuccessMsg("");
-            }}
+            onClick={() => switchMode("signup")}
           >
             Create Account
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" autoComplete="off">
           {mode === "signup" && (
             <div className="form-group">
               <label>Your Display Name</label>
@@ -168,11 +183,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <User size={18} />
                 <input
                   type="text"
-                  placeholder="e.g. Ananya or ಅರುಣ್"
+                  placeholder="Enter your name"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   required
-                  autoComplete="name"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -184,7 +199,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <Mail size={18} />
               <input
                 type="email"
-                placeholder="you@example.com"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -201,11 +216,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="button"
                     className="text-link-btn"
-                    onClick={() => {
-                      setMode("forgot");
-                      setError("");
-                      setSuccessMsg("");
-                    }}
+                    onClick={() => switchMode("forgot")}
                   >
                     Forgot password?
                   </button>
@@ -215,7 +226,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <Lock size={18} />
                 <input
                   type="password"
-                  placeholder="At least 6 characters"
+                  placeholder="Enter your password (min 6 characters)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -258,7 +269,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         <div className="auth-footer-notice">
           <span>
-            Secured by Supabase Auth & PostgreSQL Row Level Security (RLS). No plaintext passwords or client-supplied privileges.
+            Secured by Supabase Auth & PostgreSQL Row Level Security (RLS).
           </span>
         </div>
       </div>
