@@ -1,5 +1,9 @@
-﻿fastapi
-uvicorn[standard]
-python-dotenv
-google-genai
-pydantic
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-dotenv>=1.0.0
+google-genai>=1.0.0
+pydantic>=2.7.0
+supabase>=2.10.0
+python-multipart>=0.0.18
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

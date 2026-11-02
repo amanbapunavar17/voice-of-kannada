@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
   const apiBaseUrl = envFrontend.VITE_API_BASE_URL || envRoot.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
   return {
+    base: './',
     plugins: [react()],
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),

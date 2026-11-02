@@ -232,6 +232,75 @@ export const LessonViewerModal: React.FC<LessonViewerModalProps> = ({
                       </div>
                     )}
 
+                    {/* Fill in the Blank Exercise */}
+                    {currentExercise.type === "fill_blank" && (
+                      <div className="fill-blank-exercise-box">
+                        <div className="fill-sentence-card">
+                          {(() => {
+                            const sentence = currentExercise.fillSentence || "___";
+                            const parts = sentence.split("___");
+                            const chosenOpt = selectedOption
+                              ? currentExercise.options?.find((o) => o.id === selectedOption)
+                              : null;
+
+                            return (
+                              <div className="fill-sentence-row">
+                                <span className="fill-part">{parts[0]}</span>
+                                <span
+                                  className={`fill-blank-slot ${
+                                    chosenOpt
+                                      ? chosenOpt.isCorrect
+                                        ? "correct"
+                                        : "wrong"
+                                      : "empty"
+                                  }`}
+                                >
+                                  {chosenOpt ? chosenOpt.text : "______"}
+                                </span>
+                                <span className="fill-part">{parts[1] || ""}</span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        <div className="fill-options-container">
+                          <p className="fill-options-label">Choose the correct word to complete the sentence:</p>
+                          <div className="options-stack">
+                            {currentExercise.options?.map((opt) => {
+                              const isSelected = selectedOption === opt.id;
+                              let btnClass = "exercise-opt-btn";
+                              if (isSelected) {
+                                btnClass += opt.isCorrect ? " correct" : " wrong";
+                              }
+
+                              return (
+                                <button
+                                  key={opt.id}
+                                  className={btnClass}
+                                  onClick={() => {
+                                    if (exerciseFeedback !== null) return;
+                                    handleOptionSelect(opt.id, opt.isCorrect);
+                                    if (opt.isCorrect) {
+                                      const full = (currentExercise.fillSentence || "")
+                                        .replace("___", opt.text)
+                                        .trim();
+                                      speechService.speakKannada(full || opt.text);
+                                    }
+                                  }}
+                                  disabled={exerciseFeedback !== null}
+                                >
+                                  <span>{opt.text}</span>
+                                  {opt.textKannada && (
+                                    <span className="opt-kn">{opt.textKannada}</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Reorder Sentence */}
                     {currentExercise.type === "reorder" && (
                       <div className="reorder-exercise-box">

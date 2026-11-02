@@ -1,22 +1,71 @@
+import base64
 import json
+import logging
 import os
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
+import urllib.parse
+import urllib.request
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from google import genai
-from google.genai import types
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-# Load backend/.env regardless of the terminal's working directory.
+# Load backend/.env
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
+# Import modular services
+from services.auth_service import (
+    get_current_user_optional,
+    get_current_user_required,
+    get_supabase_client,
+)
+from services.conversation_service import (
+    generate_session_summary,
+    process_conversation_message,
+    start_or_get_session,
+)
+from services.gemini_service import (
+    generate_gemini_content,
+    generate_structured_json,
+    get_candidate_models,
+)
+from services.intelligence_service import (
+    generate_adaptive_lesson,
+    get_learner_skills_profile,
+    get_personal_mistakes,
+    record_learner_mistake,
+)
+from services.mission_service import (
+    REAL_WORLD_MISSIONS,
+    evaluate_completed_mission,
+    get_mission_by_id,
+    process_mission_turn,
+)
+from services.phrasebook_service import (
+    breakdown_kannada_sentence,
+    get_saved_phrases,
+    save_phrase_to_user_book,
+    translate_to_natural_kannada,
+)
+from services.pronunciation_service import (
+    PRACTICE_SENTENCES,
+    assess_pronunciation_attempt,
+)
+from services.regional_service import (
+    get_regional_comparisons,
+    get_regional_dialects,
+)
+from services.vision_service import identify_object_from_image
+
+logger = logging.getLogger("maatu.api")
+
 app = FastAPI(
-    title="Voice of Kannada API",
-    description="AI-powered Kannada learning platform backend with Supabase Auth & Gemini",
-    version="2.1.0",
+    title="Voice of Kannada API (MAATHU — ಮಾತು)",
+    description="Full-stack AI Kannada learning & real-world communication platform backend",
+    version="3.0.0",
 )
 
 # CORS configuration
@@ -27,6 +76,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -34,101 +85,7 @@ app.add_middleware(
 )
 
 # ====================================================================
-# SUPABASE CLIENT & AUTHENTICATION DEPENDENCY
-# ====================================================================
-
-def get_supabase_client():
-    """
-    Returns a configured Supabase client if environment variables are set.
-    Reads SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY.
-    """
-    url = os.getenv("SUPABASE_URL", "").strip()
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip() or os.getenv("SUPABASE_ANON_KEY", "").strip()
-
-    if not url or not key or url.startswith("https://your-project") or key.startswith("your-"):
-        return None
-
-    try:
-        from supabase import create_client
-        return create_client(url, key)
-    except Exception as e:
-        print(f"Failed to create Supabase client: {e}")
-        return None
-
-
-def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
-    """
-    Validates the Supabase bearer token if provided.
-    Returns user dict {id, email, metadata} or None if no token was passed.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-
-    token = authorization.split("Bearer ", 1)[1].strip()
-    if not token:
-        return None
-
-    client = get_supabase_client()
-    if not client:
-        return None
-
-    try:
-        user_res = client.auth.get_user(token)
-        if user_res and user_res.user:
-            return {
-                "id": str(user_res.user.id),
-                "email": user_res.user.email,
-                "metadata": user_res.user.user_metadata or {},
-            }
-        return None
-    except Exception as exc:
-        print(f"Token validation error: {exc}")
-        return None
-
-
-def get_current_user_required(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
-    """
-    Strict dependency requiring a valid, active Supabase bearer token.
-    Raises HTTP 401 Unauthorized if token is missing or invalid.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required. Please provide a valid Supabase bearer token.",
-        )
-
-    token = authorization.split("Bearer ", 1)[1].strip()
-    client = get_supabase_client()
-
-    if not client:
-        raise HTTPException(
-            status_code=503,
-            detail="Supabase backend is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env.",
-        )
-
-    try:
-        user_res = client.auth.get_user(token)
-        if not user_res or not user_res.user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid or expired session. Please sign in again.",
-            )
-        return {
-            "id": str(user_res.user.id),
-            "email": user_res.user.email,
-            "metadata": user_res.user.user_metadata or {},
-        }
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(
-            status_code=401,
-            detail=f"Authentication token verification failed: {str(exc)}",
-        ) from None
-
-
-# ====================================================================
-# CANONICAL KANNADA CONVERSATION SCENARIOS
+# CANONICAL KANNADA CONVERSATION SCENARIOS (BACKWARD COMPATIBLE)
 # ====================================================================
 
 SCENARIOS = {
@@ -190,7 +147,6 @@ SCENARIOS = {
     },
 }
 
-
 # ====================================================================
 # SCHEMAS
 # ====================================================================
@@ -199,13 +155,11 @@ class PracticeRequest(BaseModel):
     scenario_id: str = "daily"
     recognized_text: str = Field(min_length=1, max_length=1000)
 
-
 class LessonProgressRequest(BaseModel):
     lesson_id: str
     score_percent: int = 100
     xp_reward: int = 20
     points_reward: int = 5
-
 
 class RedeemRewardRequest(BaseModel):
     reward_id: str
@@ -214,44 +168,76 @@ class RedeemRewardRequest(BaseModel):
     shipping_city: str = Field(min_length=2, max_length=50)
     notes: Optional[str] = None
 
+class ConversationMessageRequest(BaseModel):
+    session_id: str
+    message: str = Field(min_length=1, max_length=1000)
+    situation_id: str = "daily"
+    learning_mode: str = "beginner"
 
-class GeminiReplyPayload(BaseModel):
-    reply_kannada: str
-    reply_english: str
+class ConversationSummaryRequest(BaseModel):
+    session_id: str
 
+class PronunciationAssessmentRequest(BaseModel):
+    target_kannada: str
+    target_transliteration: str
+    target_english: str
+    recognized_transcript: str
+
+class MissionTurnRequest(BaseModel):
+    mission_id: str
+    user_message: str
+    history: List[Dict[str, str]] = []
+
+class MissionEvaluateRequest(BaseModel):
+    mission_id: str
+    full_transcript: List[Dict[str, str]]
+
+class CameraIdentifyJsonRequest(BaseModel):
+    image_base64: str
+    mime_type: str = "image/jpeg"
+
+class AdaptiveExerciseRequest(BaseModel):
+    weakness_topic: str
+    user_level: str = "Beginner"
+
+class MistakeRecordRequest(BaseModel):
+    category: str
+    original_expression: str
+    suggested_correction: str
+    explanation: str
+
+class NaturalTranslationRequest(BaseModel):
+    english_text: str
+
+class SentenceBreakdownRequest(BaseModel):
+    kannada_sentence: str
+
+class SavePhraseRequest(BaseModel):
+    kannada_text: str
+    transliteration: str
+    english_meaning: str
+    category: str = "Everyday"
+    formality_level: str = "polite"
+    source: str = "manual"
 
 # ====================================================================
-# GEMINI CLIENT HELPER
-# ====================================================================
-
-def get_gemini_client():
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-
-    if not api_key or api_key == "PASTE_YOUR_KEY_HERE":
-        raise HTTPException(
-            status_code=503,
-            detail="Gemini is not configured. Add GEMINI_API_KEY to backend/.env.",
-        )
-
-    return genai.Client(api_key=api_key)
-
-
-# ====================================================================
-# HEALTH & METADATA ENDPOINTS
+# CORE SYSTEM & HEALTH ENDPOINTS
 # ====================================================================
 
 @app.get("/api/health")
 def health_check():
     ai_configured = bool(os.getenv("GEMINI_API_KEY", "").strip())
     supabase_configured = bool(get_supabase_client())
+    active_models = get_candidate_models()
 
     return {
         "status": "ok",
-        "message": "Voice of Kannada backend is running",
+        "app_name": "MAATHU — Voice of Kannada",
+        "version": "3.0.0",
         "ai_configured": ai_configured,
         "supabase_configured": supabase_configured,
+        "models": active_models,
     }
-
 
 @app.get("/api/scenarios")
 def get_scenarios():
@@ -267,149 +253,567 @@ def get_scenarios():
         for scenario_id, scenario in SCENARIOS.items()
     ]
 
+# ====================================================================
+# AUTHENTICATED USER PROGRESS & PROFILE
+# ====================================================================
+
+@app.get("/api/user/profile")
+def get_user_profile(current_user: Dict[str, Any] = Depends(get_current_user_required)):
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Supabase not configured")
+
+    try:
+        res = client.table("profiles").select("*").eq("id", current_user["id"]).single().execute()
+        return res.data or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch profile: {e}")
+
+@app.get("/api/user/progress")
+def get_user_progress(current_user: Dict[str, Any] = Depends(get_current_user_required)):
+    client = get_supabase_client()
+    if not client:
+        return {"completed_lessons": []}
+
+    try:
+        res = (
+            client.table("user_lesson_progress")
+            .select("lesson_id, is_completed, completed_at")
+            .eq("user_id", current_user["id"])
+            .eq("is_completed", True)
+            .execute()
+        )
+        completed = [row["lesson_id"] for row in (res.data or [])]
+        return {"completed_lessons": completed}
+    except Exception as e:
+        logger.error(f"Error fetching user progress: {e}")
+        return {"completed_lessons": []}
+
+@app.post("/api/progress/lesson")
+def record_lesson_progress(
+    request: LessonProgressRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """
+    Saves completed lesson progress and awards XP/points with idempotency protection.
+    """
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Supabase is not configured.")
+
+    user_id = current_user["id"]
+    idempotency_key = f"lesson:{user_id}:{request.lesson_id}"
+
+    try:
+        # Check if already completed
+        existing = (
+            client.table("user_lesson_progress")
+            .select("is_completed")
+            .eq("user_id", user_id)
+            .eq("lesson_id", request.lesson_id)
+            .execute()
+        )
+        is_already_completed = (
+            existing.data and len(existing.data) > 0 and existing.data[0].get("is_completed")
+        )
+
+        # Upsert lesson progress
+        client.table("user_lesson_progress").upsert({
+            "user_id": user_id,
+            "lesson_id": request.lesson_id,
+            "is_completed": True,
+            "score_percent": request.score_percent,
+            "completed_at": "now()",
+        }).execute()
+
+        awarded_xp = 0
+        awarded_points = 0
+
+        if not is_already_completed:
+            awarded_xp = request.xp_reward
+            awarded_points = request.points_reward
+
+            # Record transactions
+            client.table("point_transactions").insert([
+                {
+                    "user_id": user_id,
+                    "currency_type": "XP",
+                    "amount": awarded_xp,
+                    "reason": f"Completed lesson: {request.lesson_id}",
+                    "reference_id": f"lesson:{request.lesson_id}",
+                    "idempotency_key": f"{idempotency_key}:xp",
+                },
+                {
+                    "user_id": user_id,
+                    "currency_type": "MAATU_POINTS",
+                    "amount": awarded_points,
+                    "reason": f"Completed lesson: {request.lesson_id}",
+                    "reference_id": f"lesson:{request.lesson_id}",
+                    "idempotency_key": f"{idempotency_key}:pts",
+                },
+            ]).execute()
+
+            # Update profile balance
+            profile_res = client.table("profiles").select("xp_balance, points_balance, current_streak").eq("id", user_id).single().execute()
+            if profile_res.data:
+                curr_xp = profile_res.data.get("xp_balance", 0)
+                curr_pts = profile_res.data.get("points_balance", 0)
+                curr_streak = profile_res.data.get("current_streak", 0)
+                client.table("profiles").update({
+                    "xp_balance": curr_xp + awarded_xp,
+                    "points_balance": curr_pts + awarded_points,
+                    "current_streak": max(1, curr_streak),
+                    "last_activity_date": "now()",
+                    "updated_at": "now()",
+                }).eq("id", user_id).execute()
+
+        return {
+            "success": True,
+            "first_time": not is_already_completed,
+            "xp_awarded": awarded_xp,
+            "points_awarded": awarded_points,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to record lesson progress: {str(exc)}") from None
 
 # ====================================================================
-# AI SPEAKING PRACTICE (GEMINI INTEGRATION)
+# FEATURE 01 — AI REAL-TIME KANNADA CONVERSATION (MAATHU COMPANION)
 # ====================================================================
 
+@app.post("/api/conversation/message")
+def handle_conversation_message(
+    request: ConversationMessageRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    """
+    Main conversational exchange with MAATHU AI Kannada Friend.
+    Handles Kannada, mixed speech (Kanglish), modes, corrections, and suggested replies.
+    """
+    user_id = current_user["id"] if current_user else None
+    try:
+        reply_data = process_conversation_message(
+            session_id=request.session_id,
+            user_message=request.message,
+            situation_id=request.situation_id,
+            learning_mode=request.learning_mode,
+            user_id=user_id,
+        )
+        return {
+            "status": "ok",
+            "authenticated": bool(current_user),
+            **reply_data,
+        }
+    except Exception as exc:
+        logger.error(f"Conversation error: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not generate conversational response: {str(exc)}",
+        )
+
+@app.post("/api/conversation/summary")
+def handle_conversation_summary(
+    request: ConversationSummaryRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    user_id = current_user["id"] if current_user else None
+    try:
+        summary = generate_session_summary(request.session_id, user_id=user_id)
+        return {"status": "ok", "summary": summary}
+    except Exception as exc:
+        logger.error(f"Summary error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+# Legacy backward-compatible endpoint for existing SpeakingStudio
 @app.post("/api/practice")
 def practice_conversation(
     request: PracticeRequest,
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
-    scenario = SCENARIOS.get(request.scenario_id)
+    user_id = current_user["id"] if current_user else None
+    try:
+        reply_data = process_conversation_message(
+            session_id=f"legacy-{user_id or 'guest'}-{request.scenario_id}",
+            user_message=request.recognized_text,
+            situation_id=request.scenario_id,
+            learning_mode="beginner",
+            user_id=user_id,
+        )
+        return {
+            "status": "ok",
+            "recognized_text": request.recognized_text,
+            "reply_kannada": reply_data["reply_kannada"],
+            "reply_english": reply_data["reply_english"],
+            "authenticated": bool(current_user),
+        }
+    except Exception as exc:
+        logger.error(f"Practice error: {exc}")
+        raise HTTPException(status_code=502, detail=str(exc))
 
-    if scenario is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Unknown scenario. Please select a valid practice scenario.",
+# --------------------------------------------------------------------
+# NATIVE SPEECH AUDIO SERVICE (TTS STREAMING & GEMINI TRANSCRIPTION)
+# --------------------------------------------------------------------
+_tts_cache: Dict[str, bytes] = {}
+
+@app.get("/api/tts")
+def stream_kannada_tts(text: str, lang: str = "kn"):
+    """
+    Streams natural native Kannada audio directly to the browser.
+    Eliminates reliance on Windows/OS offline voice packs and ensures 100% reliable voice output.
+    """
+    clean_text = text.strip()
+    if not clean_text:
+        raise HTTPException(status_code=400, detail="Missing text for speech synthesis.")
+
+    # Limit to reasonable length
+    snippet = clean_text[:280]
+    cache_key = f"{lang}:{snippet}"
+    if cache_key in _tts_cache:
+        return Response(
+            content=_tts_cache[cache_key],
+            media_type="audio/mpeg",
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "Content-Disposition": "inline; filename=kannada_speech.mp3",
+            },
         )
 
-    recognized_text = request.recognized_text.strip()
-
-    if not recognized_text:
-        raise HTTPException(
-            status_code=400,
-            detail="No speech text was received. Please try again.",
-        )
-
-    prompt = f"""
-You are the friendly Kannada conversation coach in Voice of Kannada.
-
-The learner is practising spoken Kannada in this situation:
-{scenario["title"]} — {scenario["description"]}
-
-The learner said:
-{recognized_text}
-
-Your tasks:
-1. Understand the learner's message, whether it is Kannada written in Kannada
-   script, English, or a mixture of the two.
-2. Respond naturally to the actual meaning of the learner's message.
-3. Continue the conversation by asking one relevant, simple follow-up question
-   whenever appropriate.
-4. If the learner introduces themselves, acknowledge their introduction.
-   If they order food, respond as a restaurant worker. If they ask directions,
-   help as a local guide. If they shop, respond as a shopkeeper.
-5. Use natural, beginner-friendly Kannada. Avoid repeatedly giving the same
-   greeting unless the learner actually greets you.
-6. Give a concise, accurate English translation of your Kannada response.
-7. If the learner makes a Kannada mistake, gently explain a useful correction
-   in the English explanation without embarrassing them.
-8. Never invent a fixed price, location, or factual detail when it is unknown.
-9. Keep the response concise and suitable for a live conversation.
-
-Return ONLY valid JSON with these keys:
-{{
-  "reply_kannada": "Your natural Kannada response",
-  "reply_english": "English translation and, if useful, a brief correction"
-}}
-"""
+    encoded_text = urllib.parse.quote(snippet)
+    tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&tl={lang}&client=tw-ob&q={encoded_text}"
 
     try:
-        client = get_gemini_client()
-        model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+        req = urllib.request.Request(
+            tts_url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "Referer": "https://translate.google.com/",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=6) as response:
+            audio_bytes = response.read()
+            if len(_tts_cache) < 200:
+                _tts_cache[cache_key] = audio_bytes
+            return Response(
+                content=audio_bytes,
+                media_type="audio/mpeg",
+                headers={
+                    "Cache-Control": "public, max-age=86400",
+                    "Content-Disposition": "inline; filename=kannada_speech.mp3",
+                },
+            )
+    except Exception as exc:
+        logger.warning(f"Native TTS streaming error: {exc}")
+        raise HTTPException(status_code=502, detail="TTS synthesis service temporarily unavailable.")
 
-        # Retry transient 503 spikes up to 2 times
-        response = None
-        for attempt in range(3):
+@app.post("/api/transcribe")
+async def transcribe_audio_stream(
+    audio_file: UploadFile = File(...),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    """
+    Transcribes audio recording directly using Google Gemini multimodal capabilities.
+    Serves as a reliable fallback when Web Speech API encounters network connection errors.
+    """
+    try:
+        audio_bytes = await audio_file.read()
+        if not audio_bytes:
+            raise HTTPException(status_code=400, detail="Uploaded audio recording is empty.")
+
+        mime_type = audio_file.content_type or "audio/webm"
+        if "octet-stream" in mime_type:
+            mime_type = "audio/webm"
+
+        from google.genai import types
+        from services.gemini_service import get_gemini_client, get_candidate_models
+
+        client = get_gemini_client()
+        candidates = get_candidate_models()
+        last_error = None
+
+        prompt = (
+            "Listen to this audio recording of a user speaking Kannada (or mixed Kannada-English/Kanglish). "
+            "Transcribe exactly what was spoken into standard Kannada script (ಕನ್ನಡ ಲಿಪಿ). "
+            "If spoken in English or Kanglish, also provide the Kannada translation. "
+            "Return JSON matching schema: {\"transcript\": \"ಕನ್ನಡ ಲಿಪಿ\", \"english_meaning\": \"English meaning\"}"
+        )
+
+        for model_name in candidates:
             try:
                 response = client.models.generate_content(
                     model=model_name,
-                    contents=prompt,
+                    contents=[
+                        types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                        prompt,
+                    ],
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
-                        response_schema=GeminiReplyPayload,
                     ),
                 )
                 if response and response.text:
-                    break
-            except Exception as e:
-                if "503" in str(e) and attempt < 2:
-                    import time
-                    time.sleep(1.5)
-                    continue
-                raise
+                    parsed = json.loads(response.text)
+                    transcript = parsed.get("transcript", "").strip()
+                    english = parsed.get("english_meaning", "").strip()
+                    return {
+                        "status": "ok",
+                        "transcript": transcript,
+                        "transcript_kannada": transcript,
+                        "transcript_english": english,
+                    }
+            except Exception as exc:
+                last_error = exc
+                continue
 
-        if not response or not response.text:
-            raise ValueError("Gemini returned an empty response.")
-
-        result = json.loads(response.text)
-        reply_kannada = result.get("reply_kannada", "").strip()
-        reply_english = result.get("reply_english", "").strip()
-
-        if not reply_kannada or not reply_english:
-            raise ValueError("Gemini returned an incomplete response.")
-
-        # If user is authenticated and Supabase is configured, record practice session
-        if current_user:
-            sb = get_supabase_client()
-            if sb:
-                try:
-                    sb.table("practice_sessions").insert({
-                        "user_id": current_user["id"],
-                        "scenario_id": request.scenario_id,
-                        "recognized_speech": recognized_text,
-                        "ai_reply_kannada": reply_kannada,
-                        "ai_reply_english": reply_english,
-                        "xp_awarded": 15,
-                        "points_awarded": 3,
-                    }).execute()
-                except Exception as db_err:
-                    print(f"Could not log practice session to Supabase: {db_err}")
-
-        return {
-            "status": "ok",
-            "recognized_text": recognized_text,
-            "reply_kannada": reply_kannada,
-            "reply_english": reply_english,
-            "authenticated": bool(current_user),
-        }
-
+        raise HTTPException(
+            status_code=502,
+            detail=f"Speech transcription model error: {last_error}",
+        )
     except HTTPException:
         raise
     except Exception as exc:
-        print(f"Gemini practice request failed: {type(exc).__name__}: {exc}")
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "The AI conversation service could not generate a reply. "
-                "Check the backend terminal, API key, model availability, "
-                "and Gemini usage limits."
-            ),
-        ) from None
-
+        logger.error(f"Speech transcription failed: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 # ====================================================================
-# AUTHENTIC CERTIFICATE VERIFICATION (REAL DATABASE QUERY)
+# FEATURE 02 — PRONUNCIATION INTELLIGENCE
+# ====================================================================
+
+@app.get("/api/pronunciation/sentences")
+def get_pronunciation_sentences():
+    return PRACTICE_SENTENCES
+
+@app.post("/api/pronunciation/assess")
+def assess_pronunciation(
+    request: PronunciationAssessmentRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    user_id = current_user["id"] if current_user else None
+    try:
+        result = assess_pronunciation_attempt(
+            target_kannada=request.target_kannada,
+            target_transliteration=request.target_transliteration,
+            target_english=request.target_english,
+            recognized_transcript=request.recognized_transcript,
+            user_id=user_id,
+        )
+        return {"status": "ok", **result}
+    except Exception as exc:
+        logger.error(f"Pronunciation assessment error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+# ====================================================================
+# FEATURE 03 — AI REAL-WORLD ROLEPLAY (MISSIONS)
+# ====================================================================
+
+@app.get("/api/missions")
+def list_missions():
+    return REAL_WORLD_MISSIONS
+
+@app.post("/api/missions/turn")
+def mission_roleplay_turn(request: MissionTurnRequest):
+    try:
+        res = process_mission_turn(
+            mission_id=request.mission_id,
+            dialogue_history=request.history,
+            user_message=request.user_message,
+        )
+        return {"status": "ok", **res}
+    except Exception as exc:
+        logger.error(f"Mission turn error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.post("/api/missions/evaluate")
+def evaluate_mission(
+    request: MissionEvaluateRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    user_id = current_user["id"] if current_user else None
+    try:
+        eval_result = evaluate_completed_mission(
+            mission_id=request.mission_id,
+            full_transcript=request.full_transcript,
+            user_id=user_id,
+        )
+        return {"status": "ok", **eval_result}
+    except Exception as exc:
+        logger.error(f"Mission evaluation error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+# ====================================================================
+# FEATURE 04 — CAMERA-BASED KANNADA LEARNING
+# ====================================================================
+
+@app.post("/api/camera/identify")
+async def identify_camera_capture(
+    image: Optional[UploadFile] = File(None),
+    image_base64: Optional[str] = Form(None),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    user_id = current_user["id"] if current_user else None
+
+    # Handle either multipart upload or form base64
+    image_bytes: bytes = b""
+    mime_type: str = "image/jpeg"
+
+    if image is not None:
+        image_bytes = await image.read()
+        mime_type = image.content_type or "image/jpeg"
+    elif image_base64:
+        clean_b64 = image_base64
+        if "base64," in clean_b64:
+            parts = clean_b64.split("base64,")
+            header = parts[0]
+            clean_b64 = parts[1]
+            if "image/" in header:
+                mime_type = header.split("image/")[1].split(";")[0]
+                mime_type = f"image/{mime_type}"
+        image_bytes = base64.b64decode(clean_b64)
+    else:
+        raise HTTPException(status_code=400, detail="No image file or image_base64 provided.")
+
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image data.")
+
+    try:
+        result = identify_object_from_image(image_bytes, mime_type=mime_type, user_id=user_id)
+        return {"status": "ok", **result}
+    except Exception as exc:
+        logger.error(f"Camera identification error: {exc}")
+        raise HTTPException(status_code=500, detail=f"Vision identification error: {str(exc)}")
+
+@app.post("/api/camera/identify-json")
+def identify_camera_capture_json(
+    request: CameraIdentifyJsonRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    user_id = current_user["id"] if current_user else None
+    clean_b64 = request.image_base64
+    mime_type = request.mime_type
+
+    if "base64," in clean_b64:
+        parts = clean_b64.split("base64,")
+        header = parts[0]
+        clean_b64 = parts[1]
+        if "image/" in header:
+            mime_type = f"image/{header.split('image/')[1].split(';')[0]}"
+
+    try:
+        image_bytes = base64.b64decode(clean_b64)
+        result = identify_object_from_image(image_bytes, mime_type=mime_type, user_id=user_id)
+        return {"status": "ok", **result}
+    except Exception as exc:
+        logger.error(f"Camera JSON identification error: {exc}")
+        raise HTTPException(status_code=500, detail=f"Vision identification error: {str(exc)}")
+
+# ====================================================================
+# FEATURE 05 — PERSONALIZED AI TUTOR & MISTAKE LIBRARY
+# ====================================================================
+
+@app.get("/api/tutor/skills")
+def get_skills_profile(current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    user_id = current_user["id"] if current_user else None
+    return get_learner_skills_profile(user_id)
+
+@app.get("/api/tutor/mistakes")
+def list_mistakes(current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    user_id = current_user["id"] if current_user else None
+    return get_personal_mistakes(user_id)
+
+@app.post("/api/tutor/mistake/record")
+def record_mistake(
+    request: MistakeRecordRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    record_learner_mistake(
+        user_id=current_user["id"],
+        category=request.category,
+        original_expression=request.original_expression,
+        suggested_correction=request.suggested_correction,
+        explanation=request.explanation,
+    )
+    return {"status": "ok"}
+
+@app.post("/api/tutor/exercise")
+def get_adaptive_exercise(request: AdaptiveExerciseRequest):
+    try:
+        ex = generate_adaptive_lesson(request.weakness_topic, request.user_level)
+        return {"status": "ok", **ex}
+    except Exception as exc:
+        logger.error(f"Adaptive exercise error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.get("/api/fluency/scorecard")
+def get_fluency_scorecard(current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    user_id = current_user["id"] if current_user else None
+    skills_profile = get_learner_skills_profile(user_id)
+    return {
+        "status": "ok",
+        "scorecard": skills_profile,
+    }
+
+# ====================================================================
+# FEATURE 06 — REGIONAL KANNADA EXPLORER
+# ====================================================================
+
+@app.get("/api/regional/dialects")
+def list_regional_dialects():
+    return get_regional_dialects()
+
+@app.get("/api/regional/comparisons")
+def list_regional_comparisons():
+    return get_regional_comparisons()
+
+# ====================================================================
+# SUPPORTING FEATURES: TRANSLATOR, SENTENCE INTEL, PHRASEBOOK
+# ====================================================================
+
+@app.post("/api/translator")
+def natural_translation(request: NaturalTranslationRequest):
+    try:
+        res = translate_to_natural_kannada(request.english_text)
+        return {"status": "ok", **res}
+    except Exception as exc:
+        logger.error(f"Translator error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.post("/api/sentence/breakdown")
+def sentence_breakdown(request: SentenceBreakdownRequest):
+    try:
+        res = breakdown_kannada_sentence(request.kannada_sentence)
+        return {"status": "ok", **res}
+    except Exception as exc:
+        logger.error(f"Breakdown error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.get("/api/phrasebook")
+def list_saved_phrases(current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    user_id = current_user["id"] if current_user else None
+    return get_saved_phrases(user_id)
+
+@app.post("/api/phrasebook")
+def save_phrase(
+    request: SavePhraseRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    res = save_phrase_to_user_book(
+        user_id=current_user["id"],
+        kannada_text=request.kannada_text,
+        transliteration=request.transliteration,
+        english_meaning=request.english_meaning,
+        category=request.category,
+        formality_level=request.formality_level,
+        source=request.source,
+    )
+    return res
+
+# ====================================================================
+# EXISTING GAMIFICATION, CERTIFICATES & STORE REDEMPTION
 # ====================================================================
 
 @app.get("/api/verify-certificate/{cert_id}")
 def verify_certificate(cert_id: str):
-    """
-    Verifies certificate ID against real persisted database records.
-    Unknown, revoked, or unverified IDs return HTTP 404.
-    """
     clean_id = cert_id.strip().upper()
     client = get_supabase_client()
 
@@ -439,25 +843,15 @@ def verify_certificate(cert_id: str):
                     },
                 }
         except Exception as e:
-            print(f"Supabase certificate lookup error: {e}")
+            logger.error(f"Supabase certificate lookup error: {e}")
 
-    # No fake wildcard matching! Return 404 if not found in database.
     raise HTTPException(
         status_code=404,
-        detail=f"Certificate ID '{cert_id}' was not found in the Maatu registry. Please verify the ID on your printed or digital document.",
+        detail=f"Certificate ID '{cert_id}' was not found in the Maatu registry.",
     )
-
-
-# ====================================================================
-# GENUINE LEADERBOARD (REAL USERS ONLY)
-# ====================================================================
 
 @app.get("/api/leaderboard")
 def get_leaderboard():
-    """
-    Returns public top learners querying genuine profiles from Supabase.
-    If no users exist or Supabase is not configured, returns empty list (no fake users).
-    """
     client = get_supabase_client()
     if client:
         try:
@@ -469,7 +863,6 @@ def get_leaderboard():
                 .limit(25)
                 .execute()
             )
-
             if res.data and len(res.data) > 0:
                 leaders = []
                 for idx, p in enumerate(res.data, start=1):
@@ -484,21 +877,12 @@ def get_leaderboard():
                     })
                 return {"weekly": leaders, "all_time": leaders}
         except Exception as e:
-            print(f"Leaderboard query error: {e}")
+            logger.error(f"Leaderboard query error: {e}")
 
-    # Return empty list rather than fake participants
     return {"weekly": [], "all_time": []}
-
-
-# ====================================================================
-# STORE CATALOG & PROTECTED REWARD REDEMPTION
-# ====================================================================
 
 @app.get("/api/rewards")
 def get_rewards_catalog():
-    """
-    Returns the real catalog items. Fetches from Supabase rewards_catalog if present.
-    """
     client = get_supabase_client()
     if client:
         try:
@@ -511,9 +895,8 @@ def get_rewards_catalog():
             if res.data and len(res.data) > 0:
                 return res.data
         except Exception as e:
-            print(f"Rewards catalog fetch from Supabase failed: {e}")
+            logger.error(f"Rewards catalog fetch failed: {e}")
 
-    # Static catalog fallback
     return [
         {
             "id": "stickers-pack",
@@ -522,7 +905,7 @@ def get_rewards_catalog():
             "category": "stationery",
             "points_required": 100,
             "badge_label": "Popular",
-            "description": "5 premium matte vinyl stickers featuring iconic phrases like 'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ' and 'ಕನ್ನಡವೇ ಸತ್ಯ'.",
+            "description": "5 premium matte vinyl stickers featuring iconic phrases like 'ಸ್ವಲ್ಪ ಅಡ್ಜಸ್ಟ್ ಮಾಡಿ'.",
             "in_stock": True,
         },
         {
@@ -562,7 +945,7 @@ def get_rewards_catalog():
             "category": "apparel",
             "points_required": 900,
             "badge_label": "Bestseller",
-            "description": "100% bio-washed combed cotton t-shirt in forest green with classic Bengaluru Bengaluru culture script.",
+            "description": "100% bio-washed combed cotton t-shirt in forest green with classic Bengaluru culture script.",
             "in_stock": True,
         },
         {
@@ -577,27 +960,17 @@ def get_rewards_catalog():
         },
     ]
 
-
 @app.post("/api/redeem")
 def redeem_reward(
     request: RedeemRewardRequest,
     current_user: Dict[str, Any] = Depends(get_current_user_required),
 ):
-    """
-    Atomic reward redemption. Validates real user balance, updates points,
-    and creates order record.
-    """
     client = get_supabase_client()
     if not client:
-        raise HTTPException(
-            status_code=503,
-            detail="Supabase is not configured to process live redemptions.",
-        )
+        raise HTTPException(status_code=503, detail="Supabase is not configured.")
 
     order_id = f"ORD-MAATU-{int(os.urandom(3).hex(), 16) % 9000 + 1000}"
-
     try:
-        # Call secure atomic stored procedure
         rpc_res = client.rpc(
             "redeem_reward_secure",
             {
@@ -608,7 +981,6 @@ def redeem_reward(
                 "p_order_id": order_id,
             },
         ).execute()
-
         if rpc_res.data:
             return rpc_res.data
 
@@ -624,103 +996,8 @@ def redeem_reward(
             raise HTTPException(status_code=400, detail=err_msg) from None
         raise HTTPException(status_code=500, detail=f"Redemption failed: {err_msg}") from None
 
-
-# ====================================================================
-# PROTECTED LESSON PROGRESS (IDEMPOTENT XP & POINTS ATTRIBUTION)
-# ====================================================================
-
-@app.post("/api/progress/lesson")
-def record_lesson_progress(
-    request: LessonProgressRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user_required),
-):
-    """
-    Saves completed lesson progress and awards XP/points with idempotency protection.
-    """
-    client = get_supabase_client()
-    if not client:
-        raise HTTPException(status_code=503, detail="Supabase is not configured.")
-
-    user_id = current_user["id"]
-    idempotency_key = f"lesson:{user_id}:{request.lesson_id}"
-
-    try:
-        # 1. Check if lesson was already completed
-        existing = (
-            client.table("user_lesson_progress")
-            .select("is_completed")
-            .eq("user_id", user_id)
-            .eq("lesson_id", request.lesson_id)
-            .execute()
-        )
-
-        is_already_completed = (
-            existing.data and len(existing.data) > 0 and existing.data[0].get("is_completed")
-        )
-
-        # 2. Upsert lesson progress
-        client.table("user_lesson_progress").upsert({
-            "user_id": user_id,
-            "lesson_id": request.lesson_id,
-            "is_completed": True,
-            "score_percent": request.score_percent,
-            "completed_at": "now()",
-        }).execute()
-
-        # 3. Only award currency if first time completion
-        awarded_xp = 0
-        awarded_points = 0
-
-        if not is_already_completed:
-            awarded_xp = request.xp_reward
-            awarded_points = request.points_reward
-
-            # Record point transactions with unique idempotency key
-            client.table("point_transactions").insert([
-                {
-                    "user_id": user_id,
-                    "currency_type": "XP",
-                    "amount": awarded_xp,
-                    "reason": f"Completed lesson: {request.lesson_id}",
-                    "reference_id": f"lesson:{request.lesson_id}",
-                    "idempotency_key": f"{idempotency_key}:xp",
-                },
-                {
-                    "user_id": user_id,
-                    "currency_type": "MAATU_POINTS",
-                    "amount": awarded_points,
-                    "reason": f"Completed lesson: {request.lesson_id}",
-                    "reference_id": f"lesson:{request.lesson_id}",
-                    "idempotency_key": f"{idempotency_key}:pts",
-                },
-            ]).execute()
-
-            # Increment user profile balance
-            profile_res = client.table("profiles").select("xp_balance, points_balance").eq("id", user_id).single().execute()
-            if profile_res.data:
-                curr_xp = profile_res.data.get("xp_balance", 0)
-                curr_pts = profile_res.data.get("points_balance", 0)
-                client.table("profiles").update({
-                    "xp_balance": curr_xp + awarded_xp,
-                    "points_balance": curr_pts + awarded_points,
-                    "updated_at": "now()",
-                }).eq("id", user_id).execute()
-
-        return {
-            "success": True,
-            "first_time": not is_already_completed,
-            "xp_awarded": awarded_xp,
-            "points_awarded": awarded_points,
-        }
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to record lesson progress: {str(exc)}") from None
-
-
 @app.get("/api/challenges")
 def get_daily_challenges():
-    """
-    Returns today's active learning challenges.
-    """
     return [
         {
             "id": "chal-words-5",
@@ -737,7 +1014,7 @@ def get_daily_challenges():
             "id": "chal-speak-1",
             "title": "Practice 1 Voice Conversation",
             "title_kannada": "೧ ಧ್ವನಿ ಸಂಭಾಷಣೆ ನಡೆಸಿ",
-            "description": "Speak in any situation using the AI Speaking Studio.",
+            "description": "Speak in any situation using the AI Speaking Studio or Companion.",
             "target": 1,
             "xp_reward": 25,
             "points_reward": 8,
@@ -745,15 +1022,15 @@ def get_daily_challenges():
             "difficulty": "Medium",
         },
         {
-            "id": "chal-game-1",
-            "title": "Play Kannada Word Sprint",
-            "title_kannada": "ಪದ ಸ್ಪ್ರಿಂಟ್ ಆಟವಾಡಿ",
-            "description": "Score at least 60 points in the Word Sprint mini-game.",
+            "id": "chal-mission-1",
+            "title": "Complete 1 Real-World Mission",
+            "title_kannada": "೧ ನೈಜ ಸನ್ನಿವೇಶ ಸವಾಲು ಪೂರ್ಣಗೊಳಿಸಿ",
+            "description": "Successfully complete an Auto, Canteen, or Market roleplay mission.",
             "target": 1,
-            "xp_reward": 20,
-            "points_reward": 5,
-            "estimated_time": "2 min",
-            "difficulty": "Fun",
+            "xp_reward": 50,
+            "points_reward": 15,
+            "estimated_time": "4 min",
+            "difficulty": "Medium",
         },
         {
             "id": "chal-quiz-1",

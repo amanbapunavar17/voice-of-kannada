@@ -7,6 +7,11 @@ import { LandingPage } from "./components/LandingPage/LandingPage";
 import { HomeDashboard } from "./components/Home/HomeDashboard";
 import { LearnView } from "./components/Learn/LearnView";
 import { SpeakingStudio } from "./components/Practice/SpeakingStudio";
+import { MissionsView } from "./components/Missions/MissionsView";
+import { CameraLearningView } from "./components/Camera/CameraLearningView";
+import { PersonalMistakesView } from "./components/Mistakes/PersonalMistakesView";
+import { PhrasebookView } from "./components/Phrasebook/PhrasebookView";
+import { RegionalExplorerView } from "./components/Regional/RegionalExplorerView";
 import { DailyChallengesView } from "./components/Challenges/DailyChallengesView";
 import { GamesHubView } from "./components/Games/GamesHubView";
 import { ProgressView } from "./components/Progress/ProgressView";
@@ -22,34 +27,24 @@ import { useAuth } from "./context/AuthContext";
 import type { UserProfile, CertificateRecord, DailyChallenge } from "./types";
 import "./App.css";
 
-const GUEST_USER: UserProfile = {
-  id: "",
-  email: "",
-  displayName: "ಅತಿಥಿ ಕಲಿ (Guest)",
-  avatarChar: "ಅ",
-  level: "Beginner",
-  dailyGoalMinutes: 15,
-  learningMotivation: "Everyday conversations",
-  preferredSituations: ["daily", "food", "travel"],
-  xp: 0,
-  points: 0,
-  currentStreak: 0,
-  bestStreak: 0,
-  lastActiveDate: "",
-  isPublicLeaderboard: false,
-  isOnboarded: false,
-  isAuthenticated: false,
-  createdAt: "",
-};
-
 // Routes requiring authentication
 const PROTECTED_ROUTES = new Set(["home", "progress", "profile", "store"]);
 
 export function App() {
   const { session, profile, isLoading: isAuthLoading, refreshProfile, updateProfileData } = useAuth();
 
+  const [localUser, setLocalUser] = useState<UserProfile>(() => storage.getUser());
+
   const isAuthenticated = Boolean(session?.user);
-  const activeUser: UserProfile = (isAuthenticated && profile) ? profile : GUEST_USER;
+  const activeUser: UserProfile = (isAuthenticated && profile)
+    ? {
+        ...profile,
+        xp: Math.max(profile.xp ?? 0, localUser.xp ?? 0),
+        points: Math.max(profile.points ?? 0, localUser.points ?? 0),
+        currentStreak: Math.max(profile.currentStreak ?? 0, localUser.currentStreak ?? 0),
+        bestStreak: Math.max(profile.bestStreak ?? 0, localUser.bestStreak ?? 0),
+      }
+    : localUser;
 
   const [currentTab, setCurrentTab] = useState<string>(() => (isAuthenticated ? "home" : "landing"));
   const [completedLessons, setCompletedLessons] = useState<string[]>(() =>
@@ -70,12 +65,17 @@ export function App() {
   useEffect(() => {
     if (!isAuthLoading) {
       if (isAuthenticated) {
-        // If logged in and on landing, redirect to home
         if (currentTab === "landing") {
           setCurrentTab("home");
         }
+        // Sync completed lessons from Supabase source of truth
+        api.getUserProgress().then((remoteLessons) => {
+          if (remoteLessons && remoteLessons.length > 0) {
+            setCompletedLessons(remoteLessons);
+            storage.syncCompletedLessons(remoteLessons);
+          }
+        });
       } else {
-        // If logged out and on a protected route, redirect to landing
         if (PROTECTED_ROUTES.has(currentTab)) {
           setCurrentTab("landing");
         }
@@ -83,12 +83,13 @@ export function App() {
     }
   }, [isAuthenticated, isAuthLoading]);
 
-  // Subscribe to local storage updates
+  // Subscribe to local storage updates for live XP, Points, Streaks, Lessons & Challenges
   useEffect(() => {
     const unsubscribe = storage.subscribe(() => {
       setCompletedLessons(storage.getCompletedLessons());
       setChallenges(storage.getChallenges());
       setCertificates(storage.getCertificates());
+      setLocalUser(storage.getUser());
     });
     return () => unsubscribe();
   }, []);
@@ -136,7 +137,6 @@ export function App() {
 
   function handleAuthSuccess() {
     refreshProfile();
-    // Check if new user needs onboarding
     if (!activeUser.isOnboarded) {
       setOnboardingOpen(true);
     } else {
@@ -144,7 +144,6 @@ export function App() {
     }
   }
 
-  // Show premium loading splash while checking Supabase auth
   if (isAuthLoading) {
     return (
       <div className="auth-loading-splash">
@@ -230,10 +229,25 @@ export function App() {
             />
           )}
 
-          {/* Speaking Studio */}
+          {/* Feature 01 & 02: Speak with MAATHU & Pronunciation Intelligence */}
           {currentTab === "practice" && (
             <SpeakingStudio initialScenarioId={targetScenarioId} />
           )}
+
+          {/* Feature 03: Real-World Roleplay Missions */}
+          {currentTab === "missions" && <MissionsView />}
+
+          {/* Feature 04: Camera-Based Learning */}
+          {currentTab === "camera" && <CameraLearningView />}
+
+          {/* Feature 05: Personal Mistake Library & Adaptive Tutor */}
+          {currentTab === "mistakes" && <PersonalMistakesView />}
+
+          {/* Phrasebook, Survival Mode, Natural Translator, Sentence Intel */}
+          {currentTab === "phrasebook" && <PhrasebookView />}
+
+          {/* Feature 06: Regional Kannada Explorer */}
+          {currentTab === "regional" && <RegionalExplorerView />}
 
           {/* Daily Challenges */}
           {currentTab === "challenges" && (
@@ -246,7 +260,7 @@ export function App() {
           {/* Mini-Games Hub */}
           {currentTab === "games" && <GamesHubView />}
 
-          {/* Protected Progress Analytics */}
+          {/* Protected Progress & Fluency Analytics */}
           {currentTab === "progress" && (
             isAuthenticated ? (
               <ProgressView
@@ -259,7 +273,7 @@ export function App() {
                 <div className="auth-lock-circle">
                   <Lock size={32} color="#174B3A" />
                 </div>
-                <h2>Sign In to View Progress</h2>
+                <h2>Sign In to View Progress & Fluency Scorecard</h2>
                 <p>Day-wise activity logs, learning minutes, and streak histories are securely saved to your verified account.</p>
                 <button className="primary-button" onClick={() => setAuthModalOpen(true)}>
                   <LogIn size={16} /> Sign In to Maatu

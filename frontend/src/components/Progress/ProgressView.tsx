@@ -1,13 +1,15 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Flame,
   Sparkles,
   BookOpen,
   Mic,
   Award,
+  Smile,
 } from "lucide-react";
-import type { UserProfile, DailyActivityRecord } from "../../types";
+import type { UserProfile, DailyActivityRecord, LearnerSkillsProfile } from "../../types";
 import { allAchievements, calculateLevel } from "../../data/badgesData";
+import { api } from "../../services/api";
 
 interface ProgressViewProps {
   user: UserProfile;
@@ -21,6 +23,21 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   dailyActivities,
 }) => {
   const { currentLevel, nextLevel, progressPercent, xpToNext } = calculateLevel(user.xp);
+  const [scorecard, setScorecard] = useState<LearnerSkillsProfile | null>(null);
+  const [selfConfidence, setSelfConfidence] = useState<string>(() => {
+    return localStorage.getItem("maatu_self_confidence") || "Growing";
+  });
+
+  useEffect(() => {
+    api.getFluencyScorecard()
+      .then((data) => setScorecard(data))
+      .catch((e) => console.warn("Scorecard fetch error:", e));
+  }, []);
+
+  function handleSetConfidence(rating: string) {
+    setSelfConfidence(rating);
+    localStorage.setItem("maatu_self_confidence", rating);
+  }
 
   // Compute 7-day activity metrics
   const last7Days: { date: string; dayLabel: string; xp: number; minutes: number }[] = [];
@@ -44,8 +61,6 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   }
 
   const maxXp = Math.max(50, ...last7Days.map((d) => d.xp));
-
-  // Compute total aggregates
   const totalWordsLearned = completedLessons.length * 4;
   const totalSpeakingAttempts = dailyActivities.reduce(
     (acc, curr) => acc + curr.speakingAttempts,
@@ -57,9 +72,9 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
       <div className="section-heading-with-action">
         <div>
           <div className="section-kicker">PERSONAL ANALYTICS</div>
-          <h1>My Learning Progress & Streaks</h1>
+          <h1>My Learning Progress & Fluency Scorecard</h1>
           <p>
-            Track your consistency, day-wise speaking attempts, vocabulary milestones, and unlocked achievements.
+            Track your consistency, verified speaking sessions, skill breakdown, and transparent fluency analytics.
           </p>
         </div>
       </div>
@@ -99,9 +114,91 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
             <Mic size={18} color="#D4A64A" />
           </div>
           <div className="metric-val">{totalSpeakingAttempts}</div>
-          <span className="metric-hint">AI conversations completed</span>
+          <span className="metric-hint">Verified conversation turns</span>
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* SECTION 6: MAATHU FLUENCY SCORECARD                      */}
+      {/* ======================================================== */}
+      {scorecard && (
+        <div className="progress-panel fluency-scorecard-panel">
+          <div className="panel-header-row">
+            <div>
+              <span className="section-kicker">TRANSPARENT LEARNING ANALYTICS</span>
+              <h3>MAATHU Fluency Scorecard</h3>
+            </div>
+            <div className="fluency-badge-top">
+              <span className="fluency-score-large">{scorecard.overall_fluency_score}%</span>
+              <span>Overall Fluency</span>
+            </div>
+          </div>
+
+          <div className="scorecard-grid">
+            <div className="scorecard-metrics-col">
+              <h4>Skill Competency Breakdown (Database Driven)</h4>
+              <div className="skill-bar-row">
+                <span>Vocabulary Mastery:</span>
+                <div className="meter-track"><div className="meter-fill" style={{ width: `${scorecard.skills.vocabulary}%` }} /></div>
+                <strong>{scorecard.skills.vocabulary}%</strong>
+              </div>
+              <div className="skill-bar-row">
+                <span>Grammar Performance:</span>
+                <div className="meter-track"><div className="meter-fill" style={{ width: `${scorecard.skills.grammar}%` }} /></div>
+                <strong>{scorecard.skills.grammar}%</strong>
+              </div>
+              <div className="skill-bar-row">
+                <span>Speaking Clarity:</span>
+                <div className="meter-track"><div className="meter-fill" style={{ width: `${scorecard.skills.speaking}%` }} /></div>
+                <strong>{scorecard.skills.speaking}%</strong>
+              </div>
+              <div className="skill-bar-row">
+                <span>Listening Comprehension:</span>
+                <div className="meter-track"><div className="meter-fill" style={{ width: `${scorecard.skills.listening}%` }} /></div>
+                <strong>{scorecard.skills.listening}%</strong>
+              </div>
+              <div className="skill-bar-row">
+                <span>Question Formation:</span>
+                <div className="meter-track"><div className="meter-fill" style={{ width: `${scorecard.skills.question_formation}%` }} /></div>
+                <strong>{scorecard.skills.question_formation}%</strong>
+              </div>
+            </div>
+
+            <div className="scorecard-insights-col">
+              <div className="insight-card-item">
+                <span className="insight-label">Strongest Skill</span>
+                <h4>{scorecard.strongest_skill}</h4>
+                <p>Consistently high accuracy in your speaking exercises and roleplay interactions.</p>
+              </div>
+
+              <div className="insight-card-item highlight">
+                <span className="insight-label">Skill Needing Focus</span>
+                <h4>{scorecard.needs_improvement}</h4>
+                <p>{scorecard.recommendation}</p>
+              </div>
+
+              {/* Self-Reported Confidence */}
+              <div className="self-confidence-card">
+                <div className="conf-label">
+                  <Smile size={16} color="#D4A64A" />
+                  <span>How confident do you feel speaking Kannada today?</span>
+                </div>
+                <div className="confidence-pills">
+                  {["Building Foundation", "Growing", "Confident", "Fluent"].map((label) => (
+                    <button
+                      key={label}
+                      className={`conf-pill ${selfConfidence === label ? "active" : ""}`}
+                      onClick={() => handleSetConfidence(label)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 7-Day Activity Chart & Level Progression */}
       <div className="progress-twocol-grid">
@@ -192,7 +289,6 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
         <div className="heatmap-grid">
           {Array.from({ length: 28 }, (_, i) => {
             const dayNum = i + 1;
-            // Activity intensity
             const intensity = dayNum <= user.currentStreak ? (dayNum % 3) + 1 : 0;
             return (
               <div

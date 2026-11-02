@@ -3,9 +3,12 @@ import {
   Home,
   BookOpen,
   Mic,
-  CalendarCheck,
+  Target,
   MoreHorizontal,
-  Gamepad2,
+  Camera,
+  AlertTriangle,
+  Bookmark,
+  Compass,
   TrendingUp,
   Award,
   ShoppingBag,
@@ -26,12 +29,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
     { id: "home", label: "Home", icon: Home },
     { id: "learn", label: "Learn", icon: BookOpen },
     { id: "practice", label: "Speak", icon: Mic },
-    { id: "challenges", label: "Daily", icon: CalendarCheck },
+    { id: "missions", label: "Missions", icon: Target },
   ];
 
   const secondaryTabs = [
-    { id: "games", label: "Kannada Games", icon: Gamepad2 },
-    { id: "progress", label: "My Progress", icon: TrendingUp },
+    { id: "camera", label: "Camera Learning", icon: Camera },
+    { id: "mistakes", label: "My Mistakes", icon: AlertTriangle },
+    { id: "phrasebook", label: "Phrasebook & Translator", icon: Bookmark },
+    { id: "regional", label: "Regional Kannada", icon: Compass },
+    { id: "progress", label: "Progress & Fluency", icon: TrendingUp },
     { id: "certificates", label: "Certificates", icon: Award },
     { id: "store", label: "Rewards Store", icon: ShoppingBag },
     { id: "leaderboard", label: "Leaderboard", icon: Trophy },
@@ -49,6 +55,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
         {primaryTabs.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
+
           return (
             <button
               key={item.id}
@@ -63,33 +70,38 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
 
         <button
           className={`bottom-nav-item ${showMoreMenu ? "active" : ""}`}
-          onClick={() => setShowMoreMenu(!showMoreMenu)}
+          onClick={() => setShowMoreMenu(true)}
         >
           <MoreHorizontal size={20} />
           <span>More</span>
         </button>
       </nav>
 
+      {/* Full Sheet More Menu for Mobile */}
       {showMoreMenu && (
-        <div className="mobile-more-overlay" onClick={() => setShowMoreMenu(false)}>
+        <div className="mobile-more-backdrop" onClick={() => setShowMoreMenu(false)}>
           <div className="mobile-more-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="more-sheet-header">
-              <span className="brand-name">ಮಾತು ಇನ್ನಷ್ಟು (More)</span>
-              <button className="icon-close-btn" onClick={() => setShowMoreMenu(false)}>
+              <h3>All MAATHU Features</h3>
+              <button className="more-close-btn" onClick={() => setShowMoreMenu(false)}>
                 <X size={20} />
               </button>
             </div>
-            <div className="more-grid">
+
+            <div className="more-sheet-grid">
               {secondaryTabs.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
+
                 return (
                   <button
                     key={item.id}
-                    className={`more-grid-btn ${isActive ? "active" : ""}`}
+                    className={`more-grid-item ${isActive ? "active" : ""}`}
                     onClick={() => handleSelect(item.id)}
                   >
-                    <Icon size={20} />
+                    <div className="more-icon-box">
+                      <Icon size={20} />
+                    </div>
                     <span>{item.label}</span>
                   </button>
                 );

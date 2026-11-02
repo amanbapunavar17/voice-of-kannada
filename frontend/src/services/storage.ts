@@ -287,7 +287,14 @@ export const storage = {
     return [];
   },
 
-  completeLesson(lessonId: string, xpReward: number, pointsReward: number): boolean {
+  syncCompletedLessons(lessons: string[]) {
+    const existing = new Set(this.getCompletedLessons());
+    lessons.forEach((l) => existing.add(l));
+    localStorage.setItem(STORAGE_KEYS.COMPLETED_LESSONS, JSON.stringify(Array.from(existing)));
+    notifyListeners();
+  },
+
+  completeLesson(lessonId: string, xpReward: number = 20, pointsReward: number = 5): boolean {
     const completed = this.getCompletedLessons();
     const isFirstTime = !completed.includes(lessonId);
 

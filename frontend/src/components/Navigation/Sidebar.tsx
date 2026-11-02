@@ -4,8 +4,11 @@ import {
   Home,
   BookOpen,
   Mic,
-  CalendarCheck,
-  Gamepad2,
+  Target,
+  Camera,
+  AlertTriangle,
+  Bookmark,
+  Compass,
   TrendingUp,
   Award,
   ShoppingBag,
@@ -29,17 +32,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { currentLevel, progressPercent } = calculateLevel(user.xp);
 
-  const navItems = [
+  const mainNavItems = [
     { id: "home", label: "Home", icon: Home },
     { id: "learn", label: "Learn Kannada", icon: BookOpen },
-    { id: "practice", label: "Speaking Practice", icon: Mic },
-    { id: "challenges", label: "Daily Challenges", icon: CalendarCheck },
-    { id: "games", label: "Kannada Games", icon: Gamepad2 },
-    { id: "progress", label: "My Progress", icon: TrendingUp },
+    { id: "practice", label: "Speak with MAATHU", icon: Mic },
+    { id: "missions", label: "Real-Life Missions", icon: Target },
+    { id: "camera", label: "Camera Learning", icon: Camera },
+    { id: "mistakes", label: "My Mistakes", icon: AlertTriangle },
+    { id: "phrasebook", label: "Phrasebook", icon: Bookmark },
+    { id: "regional", label: "Regional Kannada", icon: Compass },
+    { id: "progress", label: "Progress & Fluency", icon: TrendingUp },
+    { id: "profile", label: "Profile", icon: User },
+  ];
+
+  const secondaryNavItems = [
     { id: "certificates", label: "Certificates", icon: Award },
     { id: "store", label: "Rewards Store", icon: ShoppingBag },
     { id: "leaderboard", label: "Leaderboard", icon: Trophy },
-    { id: "profile", label: "Profile & Settings", icon: User },
   ];
 
   return (
@@ -57,7 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-label">LEARNING PLATFORM</div>
 
       <nav className="navigation">
-        {navItems.map((item) => {
+        {mainNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
 
@@ -75,7 +84,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className="sidebar-divider" />
+      <div className="sidebar-label">ACHIEVEMENTS & COMMERCE</div>
 
+      <nav className="navigation">
+        {secondaryNavItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = currentTab === item.id;
+
+          return (
+            <button
+              key={item.id}
+              className={`nav-link ${isActive ? "active" : ""}`}
+              onClick={() => onSelectTab(item.id)}
+            >
+              <Icon size={18} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="sidebar-divider" />
       <div className="sidebar-label">LEVEL PROGRESSION</div>
 
       <div className="journey-card">
@@ -98,8 +127,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-bottom">
         <div className="karnataka-symbol">ಕ</div>
         <div>
-          <div className="sidebar-bottom-title">ನಮ್ಮ ಕನ್ನಡ</div>
-          <div className="sidebar-bottom-text">Our language, our pride.</div>
+          <strong>ಕನ್ನಡವೇ ಸತ್ಯ</strong>
+          <span>Voice of Karnataka</span>
         </div>
       </div>
     </aside>
