@@ -104,7 +104,47 @@ def test_native_tts():
     assert res.headers["content-type"] == "audio/mpeg"
     assert len(res.content) > 500
 
-def test_translator_endpoint():
+def test_translator_endpoint(monkeypatch):
+    # 1. Verify unconfigured behavior when GEMINI_API_KEY is absent
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    unconfigured_res = client.post(
+        "/api/translator",
+        json={"english_text": "Good morning, how are you?"},
+    )
+    assert unconfigured_res.status_code == 500
+    assert "GEMINI_API_KEY" in unconfigured_res.json()["detail"]
+
+    # 2. Mock Gemini service dependency with realistic Kannada translation
+    mock_payload = {
+        "kannada_script": "ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?",
+        "transliteration": "Namaskara, neevu hegiddiri?",
+        "english_meaning": "Good morning, how are you?",
+        "formal_version": "ಶುಭೋದಯ, ತಾವು ಹೇಗಿದ್ದೀರಿ? (Shubhodaya, taavu hegiddiri?)",
+        "informal_version": "ಹೇಗಿದ್ದೀಯಾ? (Hegiddeeya?)",
+        "usage_context": "Polite everyday greeting used across Karnataka in the morning.",
+        "example_conversation": [
+            {
+                "speaker": "Person A",
+                "kannada": "ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?",
+                "english": "Good morning, how are you?",
+            },
+            {
+                "speaker": "Person B",
+                "kannada": "ನಾನು ಆರಾಮಾಗಿದ್ದೀನಿ, ಧನ್ಯವಾದಗಳು.",
+                "english": "I am fine, thank you.",
+            },
+        ],
+    }
+    monkeypatch.setattr(
+        "services.phrasebook_service.generate_structured_json",
+        lambda *args, **kwargs: mock_payload,
+    )
+    monkeypatch.setattr(
+        "main.translate_to_natural_kannada",
+        lambda text: mock_payload,
+    )
+
+    # 3. Test translator endpoint with mock
     res = client.post(
         "/api/translator",
         json={"english_text": "Good morning, how are you?"},
@@ -112,4 +152,10 @@ def test_translator_endpoint():
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "ok"
-    assert "kannada_script" in data
+    assert data["kannada_script"] == "ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?"
+    assert data["transliteration"] == "Namaskara, neevu hegiddiri?"
+    assert data["english_meaning"] == "Good morning, how are you?"
+    assert "formal_version" in data
+    assert "informal_version" in data
+    assert "usage_context" in data
+    assert len(data["example_conversation"]) == 2

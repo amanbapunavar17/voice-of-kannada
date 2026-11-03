@@ -2,6 +2,13 @@
 > **"Don't just learn Kannada. Live, speak, think, and communicate in Kannada."**  
 > *"ಕನ್ನಡ ಕಲಿಯೋಣ, ಆತ್ಮವಿಶ್ವಾಸದಿಂದ ಮಾತನಾಡೋಣ"*
 
+### 🌐 EXPERIENCE MAATHU LIVE
+# [🚀 LAUNCH MAATHU — TRY THE LIVE APPLICATION](https://amanbapunavar17.github.io/voice-of-kannada/)
+
+> **Built for the Kannada Digital Innovation Hackathon 2026**  
+> **Created by Aman Ahmmed Abdul Bapunavar**  
+> *CSE Student | The National Institute of Engineering, Mysuru*
+
 [![CI / CD](https://github.com/amanbapunavar17/voice-of-kannada/actions/workflows/ci.yml/badge.svg)](https://github.com/amanbapunavar17/voice-of-kannada/actions/workflows/ci.yml)
 [![React](https://img.shields.io/badge/Frontend-React%2019%20%7C%20TypeScript%20%7C%20Vite-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.11-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -11,14 +18,26 @@
 
 ---
 
-## 🌐 Live Deployments & Repository Links
+## 🌐 Live Application & Project Links
 
-| Component | Target Platform | Live Production URL |
+### 🚀 Try MAATHU Live
+**[👉 OPEN MAATHU — VOICE OF KANNADA](https://amanbapunavar17.github.io/voice-of-kannada/)**  
+*Experience AI-powered Kannada learning, interactive speaking practice, real-world missions, camera-based learning and regional Kannada exploration.*
+
+| Component | Platform | Link / Status |
 | :--- | :--- | :--- |
-| **Frontend Web App** | **GitHub Pages** | **[https://amanbapunavar17.github.io/voice-of-kannada/](https://amanbapunavar17.github.io/voice-of-kannada/)** |
-| **Frontend Mirror** | **Vercel** | Ready with zero-config `vercel.json` |
-| **Backend API** | **FastAPI / Render** | Blueprint ready via `render.yaml` & `Dockerfile` |
-| **GitHub Source** | **GitHub Repository** | **[https://github.com/amanbapunavar17/voice-of-kannada](https://github.com/amanbapunavar17/voice-of-kannada)** |
+| **Live Application** | **GitHub Pages** | **[https://amanbapunavar17.github.io/voice-of-kannada/](https://amanbapunavar17.github.io/voice-of-kannada/)** |
+| **Source Code** | **GitHub** | **[https://github.com/amanbapunavar17/voice-of-kannada](https://github.com/amanbapunavar17/voice-of-kannada)** |
+| **CI/CD Pipeline** | **GitHub Actions** | **[https://github.com/amanbapunavar17/voice-of-kannada/actions](https://github.com/amanbapunavar17/voice-of-kannada/actions)** |
+| **Frontend Mirror** | **Vercel** | Deployment configured |
+| **Backend API** | **FastAPI / Render** | Deployment configuration available; production URL to be added after deployment |
+
+### 🧪 Demo Account
+Judges can use the following account to explore the application:
+- **Demo Email**: [test1@gmail.com](mailto:test1@gmail.com)
+- **Password**: Shared privately for hackathon evaluation.
+
+> *Please use the dedicated demo account rather than a personal account.*
 
 ---
 
