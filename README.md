@@ -15,7 +15,7 @@
 ## 🌐 Live Application & Project Links
 
 ### 🚀 Try MAATHU Live
-**[👉 OPEN MAATHU — VOICE OF KANNADA](https://amanbapunavar17.github.io/voice-of-kannada/)**  
+**[👉 OPEN MAATHU — VOICE OF KANNADA](https://voice-of-kannada-lime.vercel.app/)**  
 *Experience AI-powered Kannada learning, interactive speaking practice, real-world missions, camera-based learning and regional Kannada exploration.*
 
 | Component | Platform | Link / Status |
