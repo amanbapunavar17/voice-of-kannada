@@ -2,8 +2,14 @@ import base64
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Ensure backend directory is in sys.path regardless of execution directory (e.g. Render, Docker, local)
+BACKEND_DIR = Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 import urllib.parse
 import urllib.request
@@ -68,26 +74,42 @@ app = FastAPI(
     version="3.0.0",
 )
 
-# CORS configuration
-app.add_middleware(
-    CORSMiddleware,
-   
-allow_origins=[
-    # Production frontend
+# CORS configuration: dynamically reads FRONTEND_URL and CORS_ORIGINS from environment
+default_cors_origins = [
     "https://voice-of-kannada-lime.vercel.app",
-
-    # Local development
+    "https://voice-of-kannada.vercel.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-],
+]
 
+configured_origins = set(default_cors_origins)
+env_frontend_url = os.getenv("FRONTEND_URL", "").strip()
+env_cors_origins = os.getenv("CORS_ORIGINS", "").strip()
+
+if env_frontend_url:
+    for u in env_frontend_url.split(","):
+        cleaned = u.strip().rstrip("/")
+        if cleaned:
+            configured_origins.add(cleaned)
+
+if env_cors_origins:
+    for u in env_cors_origins.split(","):
+        cleaned = u.strip().rstrip("/")
+        if cleaned:
+            configured_origins.add(cleaned)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(configured_origins),
+    allow_origin_regex=r"https:\/\/.*\.vercel\.app",  # Matches any Vercel production or preview deployment
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # ====================================================================
@@ -685,6 +707,15 @@ async def identify_camera_capture(
     try:
         result = identify_object_from_image(image_bytes, mime_type=mime_type, user_id=user_id)
         return {"status": "ok", **result}
+    except TimeoutError as timeout_err:
+        logger.warning(f"Camera identification timed out: {timeout_err}")
+        raise HTTPException(
+            status_code=504,
+            detail="MAATHU is taking longer than expected to identify this object. Please try again.",
+        )
+    except ValueError as val_err:
+        logger.warning(f"Invalid camera identification request: {val_err}")
+        raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as exc:
         logger.error(f"Camera identification error: {exc}")
         raise HTTPException(status_code=500, detail=f"Vision identification error: {str(exc)}")
@@ -698,6 +729,9 @@ def identify_camera_capture_json(
     clean_b64 = request.image_base64
     mime_type = request.mime_type
 
+    if not clean_b64 or not clean_b64.strip():
+        raise HTTPException(status_code=400, detail="Empty or missing image base64 data.")
+
     if "base64," in clean_b64:
         parts = clean_b64.split("base64,")
         header = parts[0]
@@ -707,8 +741,21 @@ def identify_camera_capture_json(
 
     try:
         image_bytes = base64.b64decode(clean_b64)
+    except Exception as b64_err:
+        raise HTTPException(status_code=400, detail=f"Invalid base64 image encoding: {b64_err}")
+
+    try:
         result = identify_object_from_image(image_bytes, mime_type=mime_type, user_id=user_id)
         return {"status": "ok", **result}
+    except TimeoutError as timeout_err:
+        logger.warning(f"Camera JSON identification timed out: {timeout_err}")
+        raise HTTPException(
+            status_code=504,
+            detail="MAATHU is taking longer than expected to identify this object. Please try again.",
+        )
+    except ValueError as val_err:
+        logger.warning(f"Invalid camera JSON identification request: {val_err}")
+        raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as exc:
         logger.error(f"Camera JSON identification error: {exc}")
         raise HTTPException(status_code=500, detail=f"Vision identification error: {str(exc)}")

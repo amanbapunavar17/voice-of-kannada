@@ -26,6 +26,8 @@ export const CameraLearningView: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [speechFeedback, setSpeechFeedback] = useState("");
   const [isPracticingSpeech, setIsPracticingSpeech] = useState(false);
+  const [lastImage, setLastImage] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [errorType, setErrorType] = useState<"none" | "timeout" | "invalid_image" | "offline" | "generic">("none");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -124,12 +126,17 @@ export const CameraLearningView: React.FC = () => {
   }
 
   async function sendImageForAnalysis(base64Data: string, mimeType: string) {
+    if (isAnalyzing) return; // Prevent duplicate submissions
+
     setIsAnalyzing(true);
     setPermissionError("");
+    setErrorType("none");
+    setLastImage({ base64: base64Data, mimeType });
 
     try {
       const result = await api.identifyCameraBase64(base64Data, mimeType);
       setDetectedWord(result);
+      setErrorType("none");
 
       // Speak detected Kannada word automatically
       speechService.speakKannada(result.kannada_word, undefined, 0.85);
@@ -142,7 +149,30 @@ export const CameraLearningView: React.FC = () => {
         idempotencyKey: `cam_${Date.now()}`,
       });
     } catch (err: any) {
-      setPermissionError(err.message || "Failed to analyze image. Please try again.");
+      const errMsg = (err?.message || "").toLowerCase();
+      if (
+        errMsg.includes("504") ||
+        errMsg.includes("deadline") ||
+        errMsg.includes("timed out") ||
+        errMsg.includes("longer than expected")
+      ) {
+        setErrorType("timeout");
+        setPermissionError("MAATHU is taking longer than expected to identify this object. Please try again.");
+      } else if (
+        errMsg.includes("invalid") ||
+        errMsg.includes("corrupted") ||
+        errMsg.includes("empty") ||
+        errMsg.includes("format")
+      ) {
+        setErrorType("invalid_image");
+        setPermissionError(err.message || "Invalid or unsupported image file. Please upload a clear photo in JPG, PNG, or WebP format.");
+      } else if (errMsg.includes("network") || errMsg.includes("failed to fetch")) {
+        setErrorType("offline");
+        setPermissionError("Cannot connect to MAATHU API. Please check your internet connection.");
+      } else {
+        setErrorType("generic");
+        setPermissionError(err.message || "Failed to analyze image. Please try again.");
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -275,9 +305,22 @@ export const CameraLearningView: React.FC = () => {
           </div>
 
           {permissionError && (
-            <div className="chat-error-banner">
-              <AlertCircle size={16} />
-              <span>{permissionError}</span>
+            <div className={`chat-error-banner ${errorType === "timeout" ? "timeout-banner" : ""}`}>
+              <div className="error-banner-content">
+                <AlertCircle size={16} className="error-icon" />
+                <span>{permissionError}</span>
+              </div>
+              {lastImage && (
+                <button
+                  type="button"
+                  className="error-action-btn retry-btn"
+                  onClick={() => sendImageForAnalysis(lastImage.base64, lastImage.mimeType)}
+                  disabled={isAnalyzing}
+                >
+                  <RefreshCw size={14} className={isAnalyzing ? "spin" : ""} />
+                  <span>Retry Analysis</span>
+                </button>
+              )}
             </div>
           )}
         </div>

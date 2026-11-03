@@ -1,4 +1,4 @@
-name: MAATHU Continuous Integration & Deployment
+name: MAATHU CI Pipeline
 
 on:
   push:
@@ -8,13 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   backend-test:
@@ -69,37 +63,3 @@ jobs:
       - name: Run TypeScript & Vite Production Build
         working-directory: frontend
         run: npm run build
-
-      - name: Upload Build Artifact for Deployment
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          retention-days: 7
-
-  deploy-pages:
-    name: Deploy Frontend to GitHub Pages
-    needs: [frontend-build, backend-test]
-    if: github.ref == 'refs/heads/main'
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Build Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: ./dist
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

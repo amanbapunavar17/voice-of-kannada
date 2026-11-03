@@ -594,6 +594,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <ShieldCheck size={14} color="#174B3A" />
             <span>Secured by Supabase Auth & PostgreSQL Row Level Security (RLS).</span>
           </div>
+
+          {/* Test User Credentials Card for Hackathon Judges & Evaluators */}
+          <div className="test-credentials-card">
+            <div className="test-credentials-header">
+              <User size={13} className="test-credentials-icon" />
+              <span>Test User Credentials</span>
+            </div>
+            <div className="test-credentials-grid">
+              <div className="test-cred-item">
+                <Mail size={12} className="test-cred-icon" />
+                <span>Email: <strong className="test-cred-value">test1@gmail.com</strong></span>
+              </div>
+              <div className="test-cred-item">
+                <Lock size={12} className="test-cred-icon" />
+                <span>Pass: <strong className="test-cred-value">test1786</strong></span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

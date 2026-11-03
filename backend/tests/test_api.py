@@ -159,3 +159,104 @@ def test_translator_endpoint(monkeypatch):
     assert "informal_version" in data
     assert "usage_context" in data
     assert len(data["example_conversation"]) == 2
+
+SAMPLE_TINY_JPEG_B64 = (
+    "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBk"
+    "SEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIy"
+    "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAKAAoDASIAAhEBA"
+    "xEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBR"
+    "IhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1h"
+    "ZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT"
+    "1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAt"
+    "REAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRo"
+    "mJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkp"
+    "aanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD"
+    "xyiiiv3E8w//Z"
+)
+
+def test_vision_successful_identification(monkeypatch):
+    mock_vision_data = {
+        "identified_object_english": "Cup",
+        "kannada_word": "ಲೋಟ",
+        "transliteration": "Lota",
+        "category": "household",
+        "confidence_level": "high",
+        "identification_note": "A ceramic coffee mug on the table",
+        "example_sentence_kannada": "ಈ ಲೋಟದಲ್ಲಿ ಬಿಸಿ ಕಾಫಿ ಇದೆ.",
+        "example_sentence_transliteration": "Ee lotadalli bisi kaafi ide.",
+        "example_sentence_english": "There is hot coffee in this cup.",
+        "useful_related_words": [
+            {"kannada": "ತಟ್ಟೆ", "transliteration": "Thatte", "english": "Plate"},
+            {"kannada": "ಚಮಚ", "transliteration": "Chamacha", "english": "Spoon"},
+        ],
+    }
+
+    monkeypatch.setattr(
+        "main.identify_object_from_image",
+        lambda *args, **kwargs: mock_vision_data,
+    )
+
+    res = client.post(
+        "/api/camera/identify-json",
+        json={
+            "image_base64": SAMPLE_TINY_JPEG_B64,
+            "mime_type": "image/jpeg",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert data["kannada_word"] == "ಲೋಟ"
+    assert data["transliteration"] == "Lota"
+    assert data["identified_object_english"] == "Cup"
+    assert "example_sentence_kannada" in data
+    assert len(data["useful_related_words"]) >= 1
+
+def test_vision_timeout_handling(monkeypatch):
+    def mock_timeout(*args, **kwargs):
+        raise TimeoutError("MAATHU is taking longer than expected to identify this object. Please try again.")
+
+    monkeypatch.setattr("main.identify_object_from_image", mock_timeout)
+
+    res = client.post(
+        "/api/camera/identify-json",
+        json={
+            "image_base64": SAMPLE_TINY_JPEG_B64,
+            "mime_type": "image/jpeg",
+        },
+    )
+    assert res.status_code == 504
+    assert "longer than expected" in res.json()["detail"]
+
+def test_vision_invalid_image():
+    # Empty base64
+    res_empty = client.post(
+        "/api/camera/identify-json",
+        json={"image_base64": "", "mime_type": "image/jpeg"},
+    )
+    assert res_empty.status_code == 400
+
+    # Corrupt non-image data
+    res_corrupt = client.post(
+        "/api/camera/identify-json",
+        json={
+            "image_base64": "data:image/jpeg;base64,bm90LWF2YWxpZC1pbWFnZS1ieXRlcw==",
+            "mime_type": "image/jpeg",
+        },
+    )
+    assert res_corrupt.status_code == 400
+    assert "Invalid" in res_corrupt.json()["detail"] or "corrupted" in res_corrupt.json()["detail"]
+
+def test_vision_missing_credentials(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+
+    res = client.post(
+        "/api/camera/identify-json",
+        json={
+            "image_base64": SAMPLE_TINY_JPEG_B64,
+            "mime_type": "image/jpeg",
+        },
+    )
+    # When credentials are missing and service is unmocked, it fails safely with 500 without leaking secrets
+    assert res.status_code in (400, 500)
+    assert "AIza" not in res.text
