@@ -3,18 +3,12 @@
 > *"ಕನ್ನಡ ಕಲಿಯೋಣ, ಆತ್ಮವಿಶ್ವಾಸದಿಂದ ಮಾತನಾಡೋಣ"*
 
 ### 🌐 EXPERIENCE MAATHU LIVE
-# [🚀 LAUNCH MAATHU — TRY THE LIVE APPLICATION](https://amanbapunavar17.github.io/voice-of-kannada/)
+# [🚀 LAUNCH MAATHU — TRY THE LIVE APPLICATION](https://voice-of-kannada-lime.vercel.app/)
 
 > **Built for the Kannada Digital Innovation Hackathon 2026**  
 > **Created by Aman Ahmmed Abdul Bapunavar**  
 > *CSE Student | The National Institute of Engineering, Mysuru*
 
-[![CI / CD](https://github.com/amanbapunavar17/voice-of-kannada/actions/workflows/ci.yml/badge.svg)](https://github.com/amanbapunavar17/voice-of-kannada/actions/workflows/ci.yml)
-[![React](https://img.shields.io/badge/Frontend-React%2019%20%7C%20TypeScript%20%7C%20Vite-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.11-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Gemini](https://img.shields.io/badge/AI%20Engine-Google%20Gemini%202.5%20Flash-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
-[![Supabase](https://img.shields.io/badge/Database-Supabase%20PostgreSQL%20%2B%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
-[![License](https://img.shields.io/badge/License-MIT-gold.svg)](LICENSE)
 
 ---
 
@@ -35,7 +29,7 @@
 ### 🧪 Demo Account
 Judges can use the following account to explore the application:
 - **Demo Email**: [test1@gmail.com](mailto:test1@gmail.com)
-- **Password**: Shared privately for hackathon evaluation.
+- **Password**: [test1786]
 
 > *Please use the dedicated demo account rather than a personal account.*
 
